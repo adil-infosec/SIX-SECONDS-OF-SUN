@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, PALETTE } from './game/config';
 import { BootScene } from './game/scenes/BootScene';
+import { GameScene } from './game/scenes/GameScene';
 import { TitleScene } from './game/scenes/TitleScene';
 
 function showBootError(error: unknown): void {
@@ -24,7 +25,7 @@ try {
       antialias: true,
       pixelArt: false,
     },
-    scene: [BootScene, TitleScene],
+    scene: [BootScene, TitleScene, GameScene],
   });
 
   // Dev-only handle for browser QA scripts; stripped from production builds.

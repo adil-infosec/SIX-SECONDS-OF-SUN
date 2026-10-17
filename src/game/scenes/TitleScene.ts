@@ -36,7 +36,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const prompt = this.add
-      .text(CENTER_X, 460, 'PRESS ENTER', {
+      .text(CENTER_X, 460, 'PRESS ENTER TO BEGIN', {
         fontFamily: FONT_UI,
         fontSize: '20px',
         color: CSS_COLORS.gold,
@@ -52,6 +52,10 @@ export class TitleScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
+
+    const begin = () => this.scene.start(SCENE_KEYS.game, { levelId: 1 });
+    this.input.keyboard?.once('keydown-ENTER', begin);
+    this.input.once('pointerdown', begin);
   }
 
   override update(_time: number, delta: number): void {
