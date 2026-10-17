@@ -208,7 +208,17 @@ export class GameScene extends Phaser.Scene {
     this.hud.setMuted(getProgress().muted);
     this.refreshGateBadges();
 
-    this.pauseOverlay = createPauseOverlay(this, () => this.setPaused(false));
+    this.pauseOverlay = createPauseOverlay(this, this.level.title, {
+      resume: () => this.setPaused(false),
+      restart: () => {
+        this.setPaused(false);
+        this.scene.restart({ levelId: this.levelId });
+      },
+      chambers: () => {
+        this.setPaused(false);
+        this.scene.start(SCENE_KEYS.levelSelect, { focus: this.levelId });
+      },
+    });
 
     const keyboard = this.input.keyboard!;
     this.keys = keyboard.addKeys({

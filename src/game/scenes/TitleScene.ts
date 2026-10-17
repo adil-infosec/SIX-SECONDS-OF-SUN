@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
-import { CSS_COLORS, FONT_MONO, FONT_UI, GAME_HEIGHT, GAME_WIDTH, PALETTE, SCENE_KEYS, TOTAL_CHAMBERS } from '../config';
+import { CSS_COLORS, FONT_MONO, FONT_UI, GAME_HEIGHT, GAME_WIDTH, PALETTE, SCENE_KEYS, TOTAL_CHAMBERS, VERSION } from '../config';
 import { glowKey } from '../art/ProceduralTextures';
 import { audio } from '../audio/AudioEngine';
 import { CAPTURE } from '../captureMode';
-import { getProgress } from '../progressState';
-import { addMenuBackdrop, drawGlassPanel, GlassButton } from '../ui/MenuStyle';
+import { getLevel } from '../data/levels';
+import { getProgress, setPreference } from '../progressState';
+import { addLogo } from '../ui/Logo';
+import { addCornerMeta, addKeyHints, addMenuBackdrop, drawGlassPanel, GlassButton, IconButton } from '../ui/MenuStyle';
 
 const CENTER_X = GAME_WIDTH / 2;
 const LOGO_Y = 112;
@@ -14,16 +16,20 @@ const TITLE = 'SIX SECONDS OF SUN';
 type MenuItem = { label: string; detail: string; run: () => void };
 
 /**
- * Title and main menu: the eclipse emblem and layered logo over the
- * observatory backdrop, then PLAY (next open chamber), LEVEL SELECT and
- * HOW TO PLAY. Arrows / W S choose, Enter or Space confirms, the mouse
- * hovers and clicks.
+ * Title and main menu, after the title-screen design: the game logo over the
+ * observatory backdrop, then PLAY (next open chamber), LEVEL SELECT and HOW
+ * TO PLAY, with sound and settings buttons in the top corner. Arrows / W S
+ * choose, Enter or Space confirms, M toggles sound, the mouse hovers and
+ * clicks. If the logo image is missing, a drawn wordmark stands in for it.
  */
 export class TitleScene extends Phaser.Scene {
   private buttons: GlassButton[] = [];
   private selected = 0;
-  private help?: Phaser.GameObjects.Container;
+  private panel?: Phaser.GameObjects.Container;
   private leaving = false;
+  private soundButton?: IconButton;
+  /** The settings panel's rows while it is open: [sound, screen shake]. */
+  private settingsRows: GlassButton[] = [];
 
   constructor() {
     super(SCENE_KEYS.title);
@@ -31,29 +37,47 @@ export class TitleScene extends Phaser.Scene {
 
   init(): void {
     this.buttons = [];
-    this.help = undefined;
+    this.panel = undefined;
     this.leaving = false;
+    this.settingsRows = [];
   }
 
   create(): void {
     addMenuBackdrop(this);
-    this.drawEclipseLogo();
-    this.drawTitle();
+    const logoHeight = addLogo(this, CENTER_X, 30, 560);
+    if (logoHeight > 0) this.drawTagline(30 + logoHeight + 14);
+    else {
+      this.drawEclipseLogo();
+      this.drawTitle();
+    }
 
     const progress = getProgress();
     const next = CAPTURE ? 1 : Math.min(TOTAL_CHAMBERS, progress.unlocked);
     const cleared = Object.keys(progress.best).length;
+    addCornerMeta(this, {
+      status: 'OBSERVATORY ONLINE',
+      left: `CHAMBER ${String(next).padStart(2, '0')} · ${getLevel(next).title.toUpperCase()}`,
+      right: `SIX SECONDS OF SUN · v${VERSION}`,
+    });
+    this.soundButton = new IconButton(this, GAME_WIDTH - 72, 30, progress.muted ? 'mute' : 'sound', () => this.toggleMute());
+    new IconButton(this, GAME_WIDTH - 30, 30, 'gear', () => !this.panel && !this.leaving && this.openSettings());
     const items: MenuItem[] = [
       { label: 'PLAY', detail: `CH ${String(next).padStart(2, '0')}`, run: () => this.leave(SCENE_KEYS.game, { levelId: next }) },
       { label: 'LEVEL SELECT', detail: `${cleared}/${TOTAL_CHAMBERS}`, run: () => this.leave(SCENE_KEYS.levelSelect) },
       { label: 'HOW TO PLAY', detail: '?', run: () => this.openHelp() },
     ];
+    // PLAY leads, wider and taller, like the design.
+    const layout = [
+      { y: 370, w: 420, h: 50 },
+      { y: 425, w: 384, h: 42 },
+      { y: 473, w: 384, h: 42 },
+    ];
     this.buttons = items.map(
       (item, i) =>
-        new GlassButton(this, CENTER_X, 350 + i * 52, 300, 40, item.label, item.detail, {
-          hover: () => !this.help && this.select(i),
+        new GlassButton(this, CENTER_X, layout[i]!.y, layout[i]!.w, layout[i]!.h, item.label, item.detail, {
+          hover: () => !this.panel && this.select(i),
           press: () => {
-            if (this.help || this.leaving) return;
+            if (this.panel || this.leaving) return;
             this.select(i);
             this.confirm(items);
           },
@@ -62,18 +86,15 @@ export class TitleScene extends Phaser.Scene {
     // Capture takes start on the chamber list, as the recording guide describes.
     this.select(CAPTURE ? 1 : 0, false);
 
-    this.add
-      .text(CENTER_X, GAME_HEIGHT - 24, '↑ ↓  CHOOSE        ENTER  CONFIRM', {
-        fontFamily: FONT_UI,
-        fontSize: '12px',
-        color: CSS_COLORS.muted,
-      })
-      .setOrigin(0.5)
-      .setLetterSpacing(3);
+    addKeyHints(this, CENTER_X, GAME_HEIGHT - 31, [
+      ['↑ ↓', 'CHOOSE'],
+      ['ENTER', 'CONFIRM'],
+      ['ESC', 'BACK'],
+    ]);
 
     const kb = this.input.keyboard!;
     const move = (d: number) => {
-      if (this.help || this.leaving) return;
+      if (this.panel || this.leaving) return;
       this.select(Phaser.Math.Wrap(this.selected + d, 0, this.buttons.length));
     };
     kb.on('keydown-UP', () => move(-1));
@@ -83,15 +104,48 @@ export class TitleScene extends Phaser.Scene {
     // Ignore key repeat so a held Enter from the ending cannot jump straight into a chamber.
     const confirm = (e: KeyboardEvent) => {
       if (e.repeat || this.leaving) return;
-      if (this.help) this.closeHelp();
+      if (this.panel) this.closePanel();
       else this.confirm(items);
     };
     kb.on('keydown-ENTER', confirm);
     kb.on('keydown-SPACE', confirm);
-    kb.on('keydown-ESC', (e: KeyboardEvent) => !e.repeat && this.help && this.closeHelp());
+    kb.on('keydown-ESC', (e: KeyboardEvent) => !e.repeat && this.panel && this.closePanel());
+    kb.on('keydown-M', () => this.toggleMute());
+    kb.on('keydown-V', () => this.settingsRows.length > 0 && this.toggleShake());
 
     audio.startAmbience('title');
     this.cameras.main.fadeIn(300, 5, 8, 15);
+  }
+
+  private toggleMute(): void {
+    const muted = !getProgress().muted;
+    audio.setMuted(muted);
+    setPreference({ muted });
+    this.soundButton?.setIcon(muted ? 'mute' : 'sound');
+    this.refreshSettings();
+  }
+
+  private toggleShake(): void {
+    setPreference({ reducedShake: !getProgress().reducedShake });
+    this.refreshSettings();
+  }
+
+  /** Under the logo: FIRE ✦ SHADOW ✦ TIME in cyan with amber stars. */
+  private drawTagline(y: number): void {
+    const words = ['FIRE', 'SHADOW', 'TIME'];
+    const parts: Phaser.GameObjects.Text[] = [];
+    let x = 0;
+    words.forEach((word, i) => {
+      const w = this.add.text(x, 0, word, { fontFamily: FONT_UI, fontSize: '14px', fontStyle: 'bold', color: CSS_COLORS.cyan }).setOrigin(0, 0.5).setLetterSpacing(8);
+      x += w.width + 18;
+      parts.push(w);
+      if (i < words.length - 1) {
+        const star = this.add.text(x, 0, '✦', { fontFamily: FONT_UI, fontSize: '13px', color: CSS_COLORS.amber }).setOrigin(0, 0.5);
+        x += star.width + 18;
+        parts.push(star);
+      }
+    });
+    this.add.container(CENTER_X - (x - 18) / 2, y, parts);
   }
 
   private select(index: number, sound = true): void {
@@ -230,16 +284,16 @@ export class TitleScene extends Phaser.Scene {
   // ---- HOW TO PLAY panel ----
 
   private openHelp(): void {
-    if (this.help) return;
+    if (this.panel) return;
     const cx = CENTER_X;
     const w = 680;
     const h = 384;
     const top = (GAME_HEIGHT - h) / 2 - 6;
 
     const shade = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, PALETTE.night, 0.86).setOrigin(0).setInteractive();
-    shade.on('pointerdown', () => this.closeHelp());
+    shade.on('pointerdown', () => this.closePanel());
     const panel = this.add.graphics();
-    drawGlassPanel(panel, cx - w / 2, top, w, h, 18, { border: PALETTE.ice, borderAlpha: 0.55, fillAlpha: 0.97, halo: true });
+    drawGlassPanel(panel, cx - w / 2, top, w, h, 18, { border: 0x3a4b6e, borderAlpha: 1, fillAlpha: 0.97 });
 
     const parts: Phaser.GameObjects.GameObject[] = [shade, panel];
     parts.push(
@@ -297,21 +351,71 @@ export class TitleScene extends Phaser.Scene {
     });
 
     parts.push(
-      this.add
-        .text(cx, top + h - 22, 'ENTER / ESC  CLOSE', { fontFamily: FONT_UI, fontSize: '11px', color: CSS_COLORS.muted })
-        .setOrigin(0.5)
-        .setLetterSpacing(3),
+      addKeyHints(this, cx, top + h - 22, [
+        ['ENTER', 'CLOSE'],
+        ['ESC', 'BACK'],
+      ]),
     );
 
     const help = this.add.container(0, 0, parts).setDepth(50).setAlpha(0);
     this.tweens.add({ targets: help, alpha: 1, duration: 180, ease: 'Quad.easeOut' });
-    this.help = help;
+    this.panel = help;
   }
 
-  private closeHelp(): void {
-    const help = this.help;
+  /** Settings: sound and screen shake, each a row you click (or press M / V) to switch. */
+  private openSettings(): void {
+    const cx = CENTER_X;
+    const w = 460;
+    const h = 250;
+    const top = (GAME_HEIGHT - h) / 2;
+    const shade = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, PALETTE.night, 0.86).setOrigin(0).setInteractive();
+    shade.on('pointerdown', () => this.closePanel());
+    const panel = this.add.graphics();
+    drawGlassPanel(panel, cx - w / 2, top, w, h, 18, { border: 0x3a4b6e, borderAlpha: 1, fillAlpha: 0.97 });
+    const heading = this.add
+      .text(cx, top + 34, 'SETTINGS', { fontFamily: FONT_UI, fontSize: '22px', fontStyle: 'bold', color: CSS_COLORS.gold })
+      .setOrigin(0.5)
+      .setLetterSpacing(6)
+      .setShadow(0, 0, CSS_COLORS.amber, 12, false, true);
+    const rows = [
+      { label: 'SOUND', run: () => this.toggleMute() },
+      { label: 'SCREEN SHAKE', run: () => this.toggleShake() },
+    ];
+    this.settingsRows = rows.map((row, i) => {
+      const button = new GlassButton(this, cx, top + 96 + i * 56, 360, 42, row.label, '', {
+        hover: () => this.settingsRows.forEach((b, j) => b.setSelected(i === j)),
+        press: () => {
+          audio.sfx('uiMove');
+          row.run();
+        },
+      });
+      return button;
+    });
+    this.refreshSettings();
+    const hints = addKeyHints(this, cx, top + h - 26, [
+      ['M', 'SOUND'],
+      ['V', 'SHAKE'],
+      ['ESC', 'CLOSE'],
+    ]);
+    const container = this.add.container(0, 0, [shade, panel, heading, ...this.settingsRows.map((b) => b.root), hints]).setDepth(50).setAlpha(0);
+    this.tweens.add({ targets: container, alpha: 1, duration: 180, ease: 'Quad.easeOut' });
+    this.panel = container;
+  }
+
+  /** Shows ON / OFF on the open settings rows. */
+  private refreshSettings(): void {
+    const [sound, shake] = this.settingsRows;
+    if (!sound || !shake) return;
+    const p = getProgress();
+    sound.setDetail(p.muted ? 'OFF' : 'ON');
+    shake.setDetail(p.reducedShake ? 'OFF' : 'ON');
+  }
+
+  private closePanel(): void {
+    const help = this.panel;
     if (!help) return;
-    this.help = undefined;
+    this.panel = undefined;
+    this.settingsRows = [];
     audio.sfx('uiMove');
     this.tweens.add({ targets: help, alpha: 0, duration: 140, onComplete: () => help.destroy() });
   }

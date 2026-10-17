@@ -3,6 +3,8 @@ import { CAMPAIGN_CHAMBERS, CSS_COLORS, FONT_MONO, FONT_UI, GAME_HEIGHT, GAME_WI
 import { glowKey } from '../art/ProceduralTextures';
 import { audio } from '../audio/AudioEngine';
 import { getProgress } from '../progressState';
+import { hasLogo, LOGO_KEY } from '../ui/Logo';
+import { addKeyHints, addSoftShade, drawGlassPanel } from '../ui/MenuStyle';
 
 const CX = GAME_WIDTH / 2;
 const HORIZON = 400;
@@ -36,8 +38,8 @@ export class EndingScene extends Phaser.Scene {
   private rays!: Phaser.GameObjects.Graphics;
   private ring!: Phaser.GameObjects.Graphics;
   private lines: Phaser.GameObjects.Text[] = [];
-  private finale: Phaser.GameObjects.Text[] = [];
-  private prompt!: Phaser.GameObjects.Text;
+  private finale: (Phaser.GameObjects.Text | Phaser.GameObjects.Image | Phaser.GameObjects.Graphics)[] = [];
+  private prompt!: Phaser.GameObjects.Container;
   private skip!: Phaser.GameObjects.Text;
 
   constructor() {
@@ -194,29 +196,42 @@ export class EndingScene extends Phaser.Scene {
     const campaign = Object.entries(progress.best).filter(([id]) => Number(id) <= CAMPAIGN_CHAMBERS);
     const cleared = campaign.length;
     const stars = campaign.reduce((sum, [, r]) => sum + r.bestStars, 0);
+    // The game logo crowns the sunrise; plain text stands in if it did not load.
+    const logo = hasLogo(this);
+    // A dusk shade behind the logo and thank-you line keeps them crisp on the bright sky.
+    const shade = addSoftShade(this, CX, 120, 720, 300, 0.9);
+    const title = logo
+      ? this.add.image(CX, 18, LOGO_KEY).setOrigin(0.5, 0).setScale(400 / this.textures.getFrame(LOGO_KEY).width)
+      : this.add
+          .text(CX, 84, 'SIX SECONDS OF SUN', { fontFamily: FONT_UI, fontSize: '40px', fontStyle: 'bold', color: CSS_COLORS.text })
+          .setOrigin(0.5)
+          .setLetterSpacing(6);
+    const stats = this.add
+      .text(CX, 456, `${cleared} / ${CAMPAIGN_CHAMBERS} CHAMBERS   ·   ★ ${stars} / ${CAMPAIGN_CHAMBERS * 3}`, {
+        fontFamily: FONT_MONO,
+        fontSize: '15px',
+        fontStyle: 'bold',
+        color: CSS_COLORS.text,
+      })
+      .setOrigin(0.5)
+      .setLetterSpacing(1);
+    const pill = this.add.graphics();
+    const pw = stats.width + 56;
+    drawGlassPanel(pill, CX - pw / 2, 438, pw, 36, 18, { border: 0x3a4b6e, borderAlpha: 1, fillAlpha: 0.85 });
+    stats.setDepth(1);
     this.finale = [
+      shade,
+      title,
       this.add
-        .text(CX, 84, 'SIX SECONDS OF SUN', { fontFamily: FONT_UI, fontSize: '40px', fontStyle: 'bold', color: CSS_COLORS.text })
+        .text(CX, logo ? 196 : 128, 'THANK YOU FOR PLAYING', { fontFamily: FONT_UI, fontSize: '16px', fontStyle: 'bold', color: CSS_COLORS.text })
         .setOrigin(0.5)
-        .setLetterSpacing(6),
-      this.add
-        .text(CX, 128, 'THANK YOU FOR PLAYING', { fontFamily: FONT_UI, fontSize: '16px', color: CSS_COLORS.gold })
-        .setOrigin(0.5)
-        .setLetterSpacing(5),
-      this.add
-        .text(CX, 456, `${cleared} / ${CAMPAIGN_CHAMBERS} CHAMBERS   ·   ★ ${stars} / ${CAMPAIGN_CHAMBERS * 3}`, {
-          fontFamily: FONT_MONO,
-          fontSize: '15px',
-          color: CSS_COLORS.muted,
-        })
-        .setOrigin(0.5),
+        .setLetterSpacing(6)
+        .setShadow(0, 0, CSS_COLORS.amber, 10, false, true),
+      pill,
+      stats,
     ];
     for (const f of this.finale) f.setAlpha(0);
-    this.prompt = this.add
-      .text(CX, 500, 'ENTER  CHAMBERS', { fontFamily: FONT_UI, fontSize: '15px', color: CSS_COLORS.text })
-      .setOrigin(0.5)
-      .setLetterSpacing(4)
-      .setVisible(false);
+    this.prompt = addKeyHints(this, CX, 500, [['ENTER', 'CHAMBERS']]).setVisible(false);
     this.skip = this.add
       .text(GAME_WIDTH - 24, GAME_HEIGHT - 20, 'ENTER  SKIP', { fontFamily: FONT_UI, fontSize: '11px', color: CSS_COLORS.muted })
       .setOrigin(1, 0.5)

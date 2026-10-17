@@ -69,6 +69,9 @@ export const CSS_COLORS = {
   muted: '#9AAFC7',
 } as const;
 
+/** Shown on the title screen; keep in step with package.json. */
+export const VERSION = '0.1.0';
+
 /** System fonts only: no third-party font files to license. */
 export const FONT_UI = "'Segoe UI', 'Helvetica Neue', Arial, sans-serif";
 export const FONT_MONO = "Consolas, 'Courier New', monospace";

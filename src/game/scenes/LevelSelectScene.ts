@@ -7,7 +7,7 @@ import { LEVELS } from '../data/levels';
 import { getProgress, setPreference } from '../progressState';
 import type { ChamberRecord } from '../systems/Progress';
 import { formatClearTime } from '../systems/Scoring';
-import { addMenuBackdrop, drawCornerBrackets, drawGlassPanel } from '../ui/MenuStyle';
+import { addKeyHints, addMenuBackdrop, drawCornerBrackets, drawGlassPanel, IconButton } from '../ui/MenuStyle';
 import { starPoints } from '../ui/Overlays';
 
 type LevelSelectData = { focus?: number };
@@ -52,7 +52,8 @@ export class LevelSelectScene extends Phaser.Scene {
   private page = 0;
   private cards: CardView[] = [];
   private tabs: { frame: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text; x: number; w: number }[] = [];
-  private settings!: Phaser.GameObjects.Text;
+  private settings?: Phaser.GameObjects.Container;
+  private soundButton?: IconButton;
 
   constructor() {
     super(SCENE_KEYS.levelSelect);
@@ -75,18 +76,14 @@ export class LevelSelectScene extends Phaser.Scene {
     LEVELS.forEach((level, i) => this.drawCard(i, level.id, level.title, level.id <= unlockedUpTo(), progress.best[level.id]));
     this.showPage(this.page);
 
-    this.add
-      .text(GAME_WIDTH / 2, 482, 'ARROWS / WASD  SELECT     Q / E  PAGE     ENTER  PLAY     ESC  TITLE', {
-        fontFamily: FONT_UI,
-        fontSize: '13px',
-        color: CSS_COLORS.text,
-      })
-      .setOrigin(0.5)
-      .setLetterSpacing(2);
-    this.settings = this.add
-      .text(GAME_WIDTH / 2, 510, '', { fontFamily: FONT_UI, fontSize: '12px', color: CSS_COLORS.muted })
-      .setOrigin(0.5)
-      .setLetterSpacing(2);
+    addKeyHints(this, GAME_WIDTH / 2, 486, [
+      ['ARROWS', 'SELECT'],
+      ['Q / E', 'PAGE'],
+      ['ENTER', 'PLAY'],
+      ['ESC', 'BACK'],
+    ]);
+    new IconButton(this, 30, 30, 'back', () => this.scene.start(SCENE_KEYS.title));
+    this.soundButton = new IconButton(this, GAME_WIDTH - 30, 30, progress.muted ? 'mute' : 'sound', () => this.toggleMute());
     this.refreshSettings();
     this.highlight(true);
 
@@ -120,12 +117,7 @@ export class LevelSelectScene extends Phaser.Scene {
     // Ignore key repeat so a held Enter from the previous screen cannot start a chamber.
     kb.on('keydown-ENTER', (e: KeyboardEvent) => !e.repeat && this.play(this.selected));
     kb.on('keydown-ESC', (e: KeyboardEvent) => !e.repeat && this.scene.start(SCENE_KEYS.title));
-    kb.on('keydown-M', () => {
-      const muted = !getProgress().muted;
-      audio.setMuted(muted);
-      setPreference({ muted });
-      this.refreshSettings();
-    });
+    kb.on('keydown-M', () => this.toggleMute());
     kb.on('keydown-V', () => {
       setPreference({ reducedShake: !getProgress().reducedShake });
       this.refreshSettings();
@@ -187,9 +179,22 @@ export class LevelSelectScene extends Phaser.Scene {
     this.scene.start(SCENE_KEYS.game, { levelId: level.id });
   }
 
+  private toggleMute(): void {
+    const muted = !getProgress().muted;
+    audio.setMuted(muted);
+    setPreference({ muted });
+    this.soundButton?.setIcon(muted ? 'mute' : 'sound');
+    this.refreshSettings();
+  }
+
+  /** The settings row under the key hints, rebuilt when a setting changes. */
   private refreshSettings(): void {
     const p = getProgress();
-    this.settings.setText(`M  SOUND: ${p.muted ? 'OFF' : 'ON'}      V  SCREEN SHAKE: ${p.reducedShake ? 'OFF' : 'ON'}`);
+    this.settings?.destroy();
+    this.settings = addKeyHints(this, GAME_WIDTH / 2, 512, [
+      ['M', `SOUND ${p.muted ? 'OFF' : 'ON'}`],
+      ['V', `SCREEN SHAKE ${p.reducedShake ? 'OFF' : 'ON'}`],
+    ]);
   }
 
   private drawHeader(): void {
