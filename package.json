@@ -1,0 +1,23 @@
+{
+  "name": "six-seconds-of-sun",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Light the fire. Shape the shadow. Borrow six seconds. A finite six-chamber puzzle-action game for the browser.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "phaser": "3.90.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vitest": "4.1.11"
+  }
+}
