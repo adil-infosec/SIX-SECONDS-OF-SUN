@@ -7,7 +7,7 @@ Updated at the end of every gate. Nothing below counts as done without command o
 |---|---|---|
 | G0 | Game boots locally | **Done.** Typecheck, unit tests and production build pass. Verified in the browser on 2026-10-17: WebGL renderer, title screen, no game console errors, FIT scaling letterboxes correctly. |
 | G1 | Ignition opens a gate (room 1) | **Done.** Automated `RoomSim` playthrough clears room 1 under par. Played in the browser on 2026-10-17 with real key presses: Enter starts, `E` lights the beacon (bloom, `BEACON LIT`, room light, pulses), gate retracts, portal exit, clear screen 0:17.2 with 3 stars. Gate blocks without the beacon. `R`, `Esc`, blur auto-pause, `M` and Enter-to-title all work. |
-| G2 | Caster shadow powers rune (room 2) | **Logic done, browser check partial.** 79 tests pass, including a room 2 playthrough under par and routes that must not open the gate. In the browser (Canvas mode, 2026-10-17): room 1 → NEXT CHAMBER → room 2 works, the shadow wedge, rune charge ring and hint show, and the rune charged under the shadow. **Not yet seen in the browser:** rune fully powered, `SHADOW LOCK`, gate opening, and any G2 visuals in WebGL. The machine ran out of memory and the browser pane was hidden. |
+| G2 | Caster shadow powers rune (room 2) | **Done.** 79 tests pass, including a room 2 playthrough under par and routes that must not open the gate. Played in the browser in WebGL on 2026-10-17: `E` key cap in range, ignition, gradient shadow wedge, charge ring, `SHADOW LOCK`, rune glow, filled badge, gate opens. The rune stays latched after the keeper steps away. Cleared in 0:24.2 (par 1:00), 3 stars, no console errors. Canvas mode checked with `?renderer=canvas`. |
 | G3 | 6 s echo alone holds the gate (room 3) | Not started |
 | G4 | Scanner shelter and damage rules (room 4) | Not started |
 | G5 | All shipped levels cleared, results, ending, level select | Not started |
@@ -16,6 +16,7 @@ Updated at the end of every gate. Nothing below counts as done without command o
 | G8 | Public repo, Drive link, submission checklist | Not started |
 
 ## What exists
+- Dev-only QA harness `window.__qa` (`src/dev/qaHarness.ts`): presses real key events (`tap`, `drive`, `goto`). It is loaded only in `npm run dev`.
 - Phaser 3.90.0 + TypeScript 5.9.3 + Vite 7.3.7 + Vitest 4.1.11, all pinned exactly in `package-lock.json`.
 - Scripts: `dev`, `build`, `typecheck`, `test`, `preview`.
 - `BootScene` generates procedural textures, then `TitleScene` shows the eclipse logo, a rotating clock ring and the title.
@@ -44,5 +45,5 @@ Updated at the end of every gate. Nothing below counts as done without command o
 - **Deadline date:** Day 3, 9:30 AM, with the calendar date still to confirm with organizers.
 
 ## Risks and blockers
-- **C: drive has 0 bytes free.** npm's cache and temp files default to C:, so npm commands in this workspace set `npm_config_cache=D:/Adil/.cache/npm` and `TEMP/TMP=D:/Adil/.cache/tmp`. Because C: is full, Windows' pagefile is only 147 MB, so the whole system has very little commit memory (0.28 to 0.53 GB free on 2026-10-17). `vite build` then fails with "memory allocation failed" or "JavaScript heap out of memory". It passed three times earlier when more memory was free. Typecheck and tests (`--maxWorkers=1`) still pass. Freeing space on C: is recommended before long sessions and screen recording.
+- **C: drive is full and cannot be freed.** Fixed on 2026-10-17 by moving the pagefile to D: (4–6 GB); commit memory went from about 0.3 GB free to 7.6 GB free, and normal `npm test` / `npm run build` pass again. Before that: npm's cache and temp files default to C:, so npm commands in this workspace set `npm_config_cache=D:/Adil/.cache/npm` and `TEMP/TMP=D:/Adil/.cache/tmp`. Because C: is full, Windows' pagefile is only 147 MB, so the whole system has very little commit memory (0.28 to 0.53 GB free on 2026-10-17). `vite build` then fails with "memory allocation failed" or "JavaScript heap out of memory". It passed three times earlier when more memory was free. Typecheck and tests (`--maxWorkers=1`) still pass. Freeing space on C: is recommended before long sessions and screen recording.
 - **Stage 4 geometry is tight:** with a 240 px wedge, a caster at the GDD anchor (470,240) covers the rune at x=700 with only 10 px to spare. Retune when room 4 is built.

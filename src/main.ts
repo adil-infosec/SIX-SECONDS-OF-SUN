@@ -27,9 +27,10 @@ function createGame(type: number): Phaser.Game {
     },
     scene: [BootScene, TitleScene, GameScene],
   });
-  // Dev-only handle for browser QA scripts; stripped from production builds.
+  // Dev-only handles for browser QA scripts; stripped from production builds.
   if (import.meta.env.DEV) {
     (window as unknown as { __ssos: Phaser.Game }).__ssos = game;
+    void import('./dev/qaHarness').then((m) => m.installQaHarness(game));
   }
   return game;
 }
