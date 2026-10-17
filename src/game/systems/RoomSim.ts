@@ -4,6 +4,8 @@ import { findIgnitable, PRIMARY_BRAZIER_RADIUS, RELAY_BRAZIER_RADIUS, type Brazi
 import { doorConditionMet, nextGateOpen } from './GlyphDoorSystem';
 import { circleIntersectsRect, distance, type Circle, type Rect, type Vec2 } from './math';
 import { inputToVelocity, moveCircle, PLAYER_RADIUS, type CollisionWorld, type MoveInput } from './MovementSystem';
+import { initialRuneState, stepRune, type RuneState } from './RuneSystem';
+import { inAnyShadow, shadowWedge, type Wedge } from './ShadowSystem';
 
 /** GDD §8.1: the keeper exits when their center is inside the portal radius. */
 export const GOAL_RADIUS = 25;
@@ -18,6 +20,8 @@ export const NO_INPUT: FrameInput = { up: false, down: false, left: false, right
 
 export type SimEvent =
   | { type: 'ignited'; primary: boolean; relayIndex: number }
+  | { type: 'runePowered'; index: number }
+  | { type: 'runeReleased'; index: number }
   | { type: 'gateOpened' }
   | { type: 'gateClosed' }
   | { type: 'won'; clearTime: number; hits: number };
@@ -32,7 +36,10 @@ export type RunState = {
   timerRunning: boolean;
   primaryLit: boolean;
   relaysLit: boolean[];
+  runes: RuneState[];
   runesPowered: boolean[];
+  /** Shadow cast by the keeper this frame; null while the primary is unlit. */
+  keeperShadow: Wedge | null;
   gateOpen: boolean;
   gateEverOpened: boolean;
   hearts: number;
@@ -60,7 +67,9 @@ export class RoomSim {
       timerRunning: false,
       primaryLit: false,
       relaysLit: level.relayBeacons.map(() => false),
+      runes: level.runes.map(() => initialRuneState()),
       runesPowered: level.runes.map(() => false),
+      keeperShadow: null,
       gateOpen: false,
       gateEverOpened: false,
       hearts: STARTING_HEARTS,
@@ -117,6 +126,20 @@ export class RoomSim {
         events.push({ type: 'ignited', primary: false, relayIndex: index - 1 });
       }
     }
+
+    // Shadows exist only while the primary flame burns (GDD §8.4).
+    s.keeperShadow = s.primaryLit ? shadowWedge(this.level.primaryBeacon, s.keeper) : null;
+    const wedges = [s.keeperShadow];
+    this.level.runes.forEach((rune, i) => {
+      const before = s.runes[i]!;
+      const after = stepRune(before, rune.mode, inAnyShadow(rune.position, wedges), dt);
+      s.runes[i] = after;
+      const powered = after.phase === 'powered';
+      if (powered !== s.runesPowered[i]) {
+        s.runesPowered[i] = powered;
+        events.push({ type: powered ? 'runePowered' : 'runeReleased', index: i });
+      }
+    });
 
     const conditionMet = doorConditionMet({
       primaryLit: s.primaryLit,

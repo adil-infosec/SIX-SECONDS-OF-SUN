@@ -18,6 +18,8 @@ export const TOTAL_CHAMBERS = 6;
 export const DEPTH = {
   floor: 0,
   decor: 1,
+  /** Rune engraving sits under shadows so the wedge visibly covers it. */
+  runeBase: 1.5,
   shadow: 2,
   rune: 3,
   solid: 4,

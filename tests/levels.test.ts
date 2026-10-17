@@ -40,7 +40,14 @@ describe.each(LEVELS.map((l) => [l.id, l] as const))('level %i data', (_id, leve
     expect(distance(level.spawn, level.primaryBeacon)).toBeGreaterThan(IGNITE_RANGE);
   });
 
-  it('gives the first chambers at most two on-screen hints', () => {
+  it('gives the first chambers at most two on-screen hints, placed inside the chamber', () => {
     expect(level.hints.length).toBeLessThanOrEqual(2);
+    for (const hint of level.hints) expect(insideBounds(hint.position, 10)).toBe(true);
+  });
+
+  it('keeps runes clear of solid geometry', () => {
+    for (const rune of level.runes) {
+      for (const rect of level.obstacles) expect(circleIntersectsRect(rune.position, 20, rect)).toBe(false);
+    }
   });
 });

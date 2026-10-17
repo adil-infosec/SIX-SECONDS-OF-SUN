@@ -15,8 +15,10 @@ export class BeaconView {
   private readonly flame: Phaser.GameObjects.Image[] = [];
   private readonly core: Phaser.GameObjects.Arc;
   private readonly embers: Phaser.GameObjects.Particles.ParticleEmitter;
+  private readonly keycap: Phaser.GameObjects.Container;
   private roomLight?: Phaser.GameObjects.Image;
   private lit = false;
+  private inRange = false;
 
   constructor(scene: Phaser.Scene, pos: Vec2, primary: boolean, mask: Phaser.Display.Masks.GeometryMask) {
     this.scene = scene;
@@ -73,11 +75,38 @@ export class BeaconView {
       emitting: false,
     });
     this.embers.setDepth(DEPTH.fx);
+
+    // Small `E` key cap shown above an unlit brazier while the keeper is in range.
+    const cap = scene.add.graphics();
+    cap.fillStyle(PALETTE.night, 0.9);
+    cap.fillRoundedRect(-10, -10, 20, 20, 4);
+    cap.lineStyle(1.5, PALETTE.gold, 1);
+    cap.strokeRoundedRect(-10, -10, 20, 20, 4);
+    const key = scene.add
+      .text(0, 0, 'E', { fontFamily: FONT_UI, fontSize: '13px', fontStyle: 'bold', color: CSS_COLORS.gold })
+      .setOrigin(0.5);
+    this.keycap = scene.add
+      .container(pos.x, pos.y - 36 * size - 4, [cap, key])
+      .setDepth(DEPTH.hint)
+      .setVisible(false);
+  }
+
+  /** Shows or hides the `E` key cap; ignored once lit. */
+  setInRange(inRange: boolean): void {
+    const show = inRange && !this.lit;
+    if (show === this.inRange) return;
+    this.inRange = show;
+    this.keycap.setVisible(show);
+    if (show) {
+      this.keycap.setScale(0.6);
+      this.scene.tweens.add({ targets: this.keycap, scale: 1, duration: 140, ease: 'Back.easeOut' });
+    }
   }
 
   ignite(): void {
     if (this.lit) return;
     this.lit = true;
+    this.setInRange(false);
     const size = this.primary ? 1 : 0.72;
     this.drawBowl(true, size);
     for (const f of this.flame) f.setVisible(true);

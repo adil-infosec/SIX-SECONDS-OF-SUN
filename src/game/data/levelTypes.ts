@@ -18,6 +18,12 @@ export type Scanner = {
   phase: number;
 };
 
+/**
+ * On-screen instruction. `beforeIgnite` hints leave when the primary beacon
+ * is lit; `afterIgnite` hints appear then and leave once every rune is powered.
+ */
+export type Hint = { text: string; position: Vec2; show: 'beforeIgnite' | 'afterIgnite' };
+
 /** One authored chamber (GDD §9). All coordinates are in the 960×540 world. */
 export type Level = {
   id: number;
@@ -33,5 +39,5 @@ export type Level = {
   /** Solid boxes, including the exit wall segments above and below the gate. */
   obstacles: Rect[];
   scanners: Scanner[];
-  hints: string[];
+  hints: Hint[];
 };
