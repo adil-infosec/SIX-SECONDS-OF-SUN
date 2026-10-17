@@ -83,8 +83,10 @@ export class LevelSelectScene extends Phaser.Scene {
     kb.on('keydown-ENTER', (e: KeyboardEvent) => !e.repeat && this.play(this.selected));
     kb.on('keydown-ESC', (e: KeyboardEvent) => !e.repeat && this.scene.start(SCENE_KEYS.title));
     kb.on('keydown-M', () => {
-      this.sound.mute = !this.sound.mute;
-      setPreference({ muted: this.sound.mute });
+      // Read the saved preference, not `sound.mute`, which lags behind on WebAudio.
+      const muted = !getProgress().muted;
+      this.sound.mute = muted;
+      setPreference({ muted });
       this.refreshSettings();
     });
     kb.on('keydown-V', () => {
@@ -105,7 +107,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private refreshSettings(): void {
     const p = getProgress();
-    this.settings.setText(`M  SOUND: ${this.sound.mute ? 'OFF' : 'ON'}      V  SCREEN SHAKE: ${p.reducedShake ? 'OFF' : 'ON'}`);
+    this.settings.setText(`M  SOUND: ${p.muted ? 'OFF' : 'ON'}      V  SCREEN SHAKE: ${p.reducedShake ? 'OFF' : 'ON'}`);
   }
 
   private highlight(): void {

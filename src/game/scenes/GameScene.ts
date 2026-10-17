@@ -155,7 +155,7 @@ export class GameScene extends Phaser.Scene {
     this.hud = new HUD(this, this.level.id, this.level.title, this.level.echo ? KEY_HINTS_ECHO : KEY_HINTS);
     if (this.level.echo) this.memory = new MemoryMeter(this);
     this.hud.setHearts(STARTING_HEARTS, STARTING_HEARTS);
-    this.hud.setMuted(this.sound.mute);
+    this.hud.setMuted(getProgress().muted);
     this.refreshGateBadges();
 
     this.pauseOverlay = createPauseOverlay(this, () => this.setPaused(false));
@@ -422,8 +422,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private toggleMute(): void {
-    this.sound.mute = !this.sound.mute;
-    this.hud.setMuted(this.sound.mute);
-    setPreference({ muted: this.sound.mute });
+    // The saved preference is the source of truth: Phaser's WebAudio `mute`
+    // getter only reflects a change after the audio thread applies it.
+    const muted = !getProgress().muted;
+    this.sound.mute = muted;
+    this.hud.setMuted(muted);
+    setPreference({ muted });
   }
 }
