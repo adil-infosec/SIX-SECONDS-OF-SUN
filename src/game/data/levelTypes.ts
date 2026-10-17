@@ -27,13 +27,14 @@ export type Scanner = {
 /**
  * On-screen instruction. `show`: visible from the start, from when the
  * primary beacon is lit, or from the first echo. `hide`: removed when the
- * beacon is lit, when every rune is powered, at the first echo, or never.
+ * beacon is lit, when every relay is lit, when every rune is powered, at the
+ * first echo, or never.
  */
 export type Hint = {
   text: string;
   position: Vec2;
   show: 'start' | 'ignite' | 'echo';
-  hide: 'ignite' | 'runes' | 'echo' | 'never';
+  hide: 'ignite' | 'relays' | 'runes' | 'echo' | 'never';
 };
 
 /** One authored chamber (GDD §9). All coordinates are in the 960×540 world. */
@@ -51,6 +52,8 @@ export type Level = {
   /** Solid boxes, including the exit wall segments above and below the gate. */
   obstacles: Rect[];
   scanners: Scanner[];
+  /** GDD §8.7: reached by the keeper, a checkpoint becomes the respawn point after a hit. */
+  checkpoints: Vec2[];
   /** Whether `Q` (the six-second echo) is available in this chamber. */
   echo: boolean;
   hints: Hint[];

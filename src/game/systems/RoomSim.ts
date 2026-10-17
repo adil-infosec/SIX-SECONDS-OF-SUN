@@ -22,6 +22,7 @@ export const STARTING_HEARTS = 3;
 /** GDD §8.6 hit response. */
 export const HIT_FREEZE_SECONDS = 0.12;
 export const INVULNERABLE_SECONDS = 1;
+export const CHECKPOINT_RADIUS = 28;
 
 export type FrameInput = MoveInput & {
   /** Edge-triggered: true only on the frame `E` went down. */
@@ -42,6 +43,7 @@ export type SimEvent =
   | { type: 'gateClosed' }
   | { type: 'hit'; hearts: number }
   | { type: 'respawned' }
+  | { type: 'checkpoint'; index: number }
   | { type: 'failed' }
   | { type: 'won'; clearTime: number; hits: number };
 
@@ -84,6 +86,9 @@ export type RunState = {
   freeze: number;
   /** Seconds of post-respawn protection left. */
   invulnerable: number;
+  /** Where a hit sends the keeper: the spawn, or the last checkpoint reached. */
+  safePoint: Vec2;
+  checkpointsReached: boolean[];
   /** Out of hearts: the attempt is over and the scene restarts it. */
   failed: boolean;
   won: boolean;
@@ -129,6 +134,8 @@ export class RoomSim {
       hits: 0,
       freeze: 0,
       invulnerable: 0,
+      safePoint: { ...level.spawn },
+      checkpointsReached: level.checkpoints.map(() => false),
       failed: false,
       won: false,
     };
@@ -166,7 +173,7 @@ export class RoomSim {
     if (s.freeze > 0) {
       s.freeze = Math.max(0, s.freeze - dt);
       if (s.freeze === 0) {
-        s.keeper = { ...this.level.spawn };
+        s.keeper = { ...s.safePoint };
         s.invulnerable = INVULNERABLE_SECONDS;
         events.push({ type: 'respawned' });
       }
@@ -187,6 +194,14 @@ export class RoomSim {
     s.keeper = moveCircle(s.keeper, velocity, dt, PLAYER_RADIUS, this.collisionWorld());
     this.history.advance(dt, s.keeper);
     s.memory = this.history.seconds;
+
+    this.level.checkpoints.forEach((cp, i) => {
+      if (!s.checkpointsReached[i] && distance(s.keeper, cp) <= CHECKPOINT_RADIUS) {
+        s.checkpointsReached[i] = true;
+        s.safePoint = { ...cp };
+        events.push({ type: 'checkpoint', index: i });
+      }
+    });
 
     if (input.ignite) {
       const index = this.ignitableIndex();

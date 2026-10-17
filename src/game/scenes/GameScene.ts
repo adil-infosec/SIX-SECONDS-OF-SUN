@@ -242,6 +242,7 @@ export class GameScene extends Phaser.Scene {
           this.dismissHints('ignite');
           this.revealHints('ignite');
         }
+        if (this.sim.state.relaysLit.every(Boolean)) this.dismissHints('relays');
         this.refreshGateBadges();
         break;
       }
@@ -292,6 +293,7 @@ export class GameScene extends Phaser.Scene {
   private hintSatisfied(hint: Hint): boolean {
     const s = this.sim.state;
     if (hint.hide === 'ignite') return s.primaryLit;
+    if (hint.hide === 'relays') return s.relaysLit.every(Boolean);
     if (hint.hide === 'runes') return s.runesPowered.every(Boolean);
     if (hint.hide === 'echo') return s.echo !== null;
     return false;
