@@ -25,4 +25,17 @@ Every file that ships to players is listed here with where it came from and what
 The minified bundle drops license comments, so Phaser's MIT notice ships separately as `public/licenses/phaser-LICENSE.md` (copied unchanged from `node_modules/phaser/LICENSE.md`). The build-only tools are not shipped to players.
 
 ## Audio
-None yet. Planned: procedural WebAudio tones generated in code (GDD §5).
+Every sound is synthesized at runtime by `src/game/audio/AudioEngine.ts` from oscillators, a generated white-noise buffer, filters and envelopes. No recordings, samples or sound files are used or shipped.
+
+| Sound | How it is made |
+|---|---|
+| Ambient drone | Two detuned sawtooths (55 Hz) and a triangle fifth through a slowly breathing low-pass. A warm major third and fifth fade in once a beacon is lit |
+| Clockwork ticks | Short band-passed noise clicks every 0.5 s, alternating tick and tock |
+| Brazier crackle | Random high-passed noise pops, denser with each lit brazier |
+| Ignition | Sine bass drop (110 to 42 Hz), a low-pass noise whoosh and a fifth tail |
+| Rune powered | Glassy bell: four inharmonic sine partials |
+| Echo | Reverse chime: sine tones that swell and cut off, then a high bell |
+| Scanner | Band-passed noise and a low sawtooth hum whose loudness follows the band's distance from the keeper, plus a two-beep danger warning |
+| Hit, gate, checkpoint, win, fail, UI | Short oscillator and noise envelopes |
+| Sunrise | Slow A-major pad with bells on the three story lines |
+

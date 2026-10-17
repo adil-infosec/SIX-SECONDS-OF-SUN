@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CSS_COLORS, FONT_UI, GAME_WIDTH, PALETTE, SCENE_KEYS } from '../config';
 import { glowKey } from '../art/ProceduralTextures';
+import { audio } from '../audio/AudioEngine';
 
 const CENTER_X = GAME_WIDTH / 2;
 const LOGO_Y = 190;
@@ -53,7 +54,11 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    const begin = () => this.scene.start(SCENE_KEYS.levelSelect);
+    audio.startAmbience('title');
+    const begin = () => {
+      audio.sfx('uiConfirm');
+      this.scene.start(SCENE_KEYS.levelSelect);
+    };
     this.input.keyboard?.once('keydown-ENTER', begin);
     this.input.once('pointerdown', begin);
   }

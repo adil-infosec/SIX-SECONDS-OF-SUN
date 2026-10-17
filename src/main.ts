@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audio } from './game/audio/AudioEngine';
 import { GAME_HEIGHT, GAME_WIDTH, PALETTE } from './game/config';
 import { BootScene } from './game/scenes/BootScene';
 import { EndingScene } from './game/scenes/EndingScene';
@@ -27,6 +28,8 @@ function createGame(type: number): Phaser.Game {
       antialias: true,
       pixelArt: false,
     },
+    // All sound comes from the game's own WebAudio synth (audio/AudioEngine.ts).
+    audio: { noAudio: true },
     scene: [BootScene, TitleScene, LevelSelectScene, GameScene, EndingScene],
   });
   // Dev-only handles for browser QA scripts; stripped from production builds.
@@ -45,6 +48,7 @@ function createGame(type: number): Phaser.Game {
  * forces Canvas for testing.
  */
 function start(): void {
+  audio.installUnlock(window);
   const forceCanvas = new URLSearchParams(window.location.search).get('renderer') === 'canvas';
   let game = createGame(forceCanvas ? Phaser.CANVAS : Phaser.AUTO);
   if (forceCanvas) return;

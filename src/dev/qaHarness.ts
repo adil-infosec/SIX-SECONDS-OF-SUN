@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { audio } from '../game/audio/AudioEngine';
 import type { Vec2 } from '../game/systems/math';
 
 /**
@@ -89,5 +90,5 @@ export function installQaHarness(game: Phaser.Game): void {
     await sleep(500);
   };
 
-  (window as unknown as { __qa: unknown }).__qa = { key, tap, drive, goto, sleep, scene, sim, active, game };
+  (window as unknown as { __qa: unknown }).__qa = { key, tap, drive, goto, sleep, scene, sim, active, game, audio };
 }

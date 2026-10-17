@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CSS_COLORS, FONT_MONO, FONT_UI, GAME_WIDTH, PALETTE, SCENE_KEYS, TOTAL_CHAMBERS } from '../config';
+import { audio } from '../audio/AudioEngine';
 import { LEVELS } from '../data/levels';
 import { getProgress, setPreference } from '../progressState';
 import { formatClearTime } from '../systems/Scoring';
@@ -68,7 +69,9 @@ export class LevelSelectScene extends Phaser.Scene {
 
     const kb = this.input.keyboard!;
     const move = (d: number) => {
-      this.selected = Phaser.Math.Clamp(this.selected + d, 0, LEVELS.length - 1);
+      const next = Phaser.Math.Clamp(this.selected + d, 0, LEVELS.length - 1);
+      if (next !== this.selected) audio.sfx('uiMove');
+      this.selected = next;
       this.highlight();
     };
     kb.on('keydown-LEFT', () => move(-1));
@@ -83,9 +86,8 @@ export class LevelSelectScene extends Phaser.Scene {
     kb.on('keydown-ENTER', (e: KeyboardEvent) => !e.repeat && this.play(this.selected));
     kb.on('keydown-ESC', (e: KeyboardEvent) => !e.repeat && this.scene.start(SCENE_KEYS.title));
     kb.on('keydown-M', () => {
-      // Read the saved preference, not `sound.mute`, which lags behind on WebAudio.
       const muted = !getProgress().muted;
-      this.sound.mute = muted;
+      audio.setMuted(muted);
       setPreference({ muted });
       this.refreshSettings();
     });
@@ -99,9 +101,11 @@ export class LevelSelectScene extends Phaser.Scene {
   private play(index: number): void {
     const level = LEVELS[index];
     if (!level || level.id > getProgress().unlocked) {
+      audio.sfx('uiLocked');
       this.cameras.main.shake(90, 0.004);
       return;
     }
+    audio.sfx('uiConfirm');
     this.scene.start(SCENE_KEYS.game, { levelId: level.id });
   }
 
@@ -182,6 +186,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
     const hit = this.add.zone(x, y, CARD_W, CARD_H).setOrigin(0).setInteractive({ useHandCursor: unlocked });
     hit.on('pointerover', () => {
+      if (index !== this.selected) audio.sfx('uiMove');
       this.selected = index;
       this.highlight();
     });

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CSS_COLORS, FONT_MONO, FONT_UI, GAME_HEIGHT, GAME_WIDTH, PALETTE, SCENE_KEYS, TOTAL_CHAMBERS } from '../config';
 import { glowKey } from '../art/ProceduralTextures';
+import { audio } from '../audio/AudioEngine';
 import { getProgress } from '../progressState';
 
 const CX = GAME_WIDTH / 2;
@@ -85,6 +86,8 @@ export class EndingScene extends Phaser.Scene {
     const kb = this.input.keyboard!;
     for (const key of ['ENTER', 'SPACE', 'ESC']) kb.on(`keydown-${key}`, (e: KeyboardEvent) => !e.repeat && this.advance());
     this.input.on('pointerdown', () => this.advance());
+    audio.startAmbience('ending');
+    audio.sunrise([BEATS.line1, BEATS.line2, BEATS.line3], BEATS.title);
     this.cameras.main.fadeIn(600, 5, 8, 15);
   }
 

@@ -3,6 +3,7 @@ import { CHAMBER_BOUNDS, CSS_COLORS, DEPTH, FONT_UI, PALETTE, SCENE_KEYS } from 
 import { getLevel, hasLevel } from '../data/levels';
 import type { Hint, Level } from '../data/levelTypes';
 import { BeaconView } from '../art/BeaconView';
+import { audio, type SfxName } from '../audio/AudioEngine';
 import { CheckpointView } from '../art/CheckpointView';
 import { EclipseEngineView } from '../art/EclipseEngineView';
 import { EchoView } from '../art/EchoView';
@@ -18,6 +19,7 @@ import { echoAlpha } from '../systems/EchoSystem';
 import { recordClear } from '../systems/Progress';
 import { RoomSim, STARTING_HEARTS, type FrameInput, type SimEvent } from '../systems/RoomSim';
 import { chargeFraction } from '../systems/RuneSystem';
+import { scannerProximity } from '../systems/ScannerSystem';
 import { computeStars } from '../systems/Scoring';
 import { clampDelta } from '../systems/time';
 import { HUD } from '../ui/HUD';
@@ -44,6 +46,22 @@ const KEY_HINTS_ECHO = 'WASD MOVE   ·   E IGNITE   ·   Q ECHO   ·   R RETRY  
 const WIN_OVERLAY_DELAY_MS = 650;
 const FAIL_RESTART_DELAY_MS = 1300;
 
+/** Which sound each simulation event plays; `won` is handled with the win sequence. */
+const EVENT_SOUNDS: Partial<Record<SimEvent['type'], SfxName | ((e: SimEvent) => SfxName)>> = {
+  ignited: (e) => (e.type === 'ignited' && !e.primary ? 'relay' : 'ignite'),
+  runePowered: 'rune',
+  runeReleased: 'runeOff',
+  echoCreated: 'echo',
+  echoDenied: 'deny',
+  gateOpened: 'gateOpen',
+  gateClosed: 'gateClose',
+  hit: 'hit',
+  respawned: 'respawn',
+  checkpoint: 'checkpoint',
+  failed: 'fail',
+  won: 'win',
+};
+
 /** One chamber attempt. Game rules live in RoomSim; this scene reads input and renders. */
 export class GameScene extends Phaser.Scene {
   private levelId = 1;
@@ -69,6 +87,8 @@ export class GameScene extends Phaser.Scene {
   private checkpoints: CheckpointView[] = [];
   private engine: EclipseEngineView | null = null;
   private finalClear: { clearTime: number; stars: number } | null = null;
+  /** Danger flag last frame, so the warning beep fires on its rising edge. */
+  private wasDanger = false;
   private darkness!: Phaser.GameObjects.Rectangle;
   private hints: { hint: Hint; text: Phaser.GameObjects.Text; gone: boolean }[] = [];
   private pauseOverlay!: Phaser.GameObjects.Container;
@@ -96,6 +116,7 @@ export class GameScene extends Phaser.Scene {
     this.checkpoints = [];
     this.engine = null;
     this.finalClear = null;
+    this.wasDanger = false;
     this.pressed.clear();
   }
 
@@ -187,6 +208,13 @@ export class GameScene extends Phaser.Scene {
       this.game.events.off(Phaser.Core.Events.HIDDEN, this.autoPause, this);
     });
 
+    audio.startAmbience('chamber');
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      audio.setCrackle(0);
+      audio.setScannerProximity(0);
+      audio.setPaused(false);
+    });
+
     this.cameras.main.fadeIn(220, 5, 8, 15);
   }
 
@@ -244,9 +272,17 @@ export class GameScene extends Phaser.Scene {
     for (const relay of this.relays) relay.update(time);
     this.portal.update(dt);
     this.hud.setTime(s.elapsed);
+
+    audio.setWarmth(s.primaryLit ? 1 : 0);
+    audio.setCrackle((s.primaryLit ? 1 : 0) + s.relaysLit.filter(Boolean).length);
+    audio.setScannerProximity(scannerProximity(this.level.scanners, s.scanners, s.keeper));
+    if (s.danger && !this.wasDanger) audio.sfx('danger');
+    this.wasDanger = s.danger;
   }
 
   private handleEvent(event: SimEvent): void {
+    const sound = EVENT_SOUNDS[event.type];
+    if (sound) audio.sfx(typeof sound === 'function' ? sound(event) : sound);
     switch (event.type) {
       case 'ignited': {
         const view = event.primary ? this.primary : this.relays[event.relayIndex];
@@ -413,6 +449,7 @@ export class GameScene extends Phaser.Scene {
     this.paused = paused;
     this.pauseOverlay.setVisible(paused);
     this.time.paused = paused;
+    audio.setPaused(paused);
     if (paused) this.tweens.pauseAll();
     else {
       this.tweens.resumeAll();
@@ -422,10 +459,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private toggleMute(): void {
-    // The saved preference is the source of truth: Phaser's WebAudio `mute`
-    // getter only reflects a change after the audio thread applies it.
     const muted = !getProgress().muted;
-    this.sound.mute = muted;
+    audio.setMuted(muted);
     this.hud.setMuted(muted);
     setPreference({ muted });
   }

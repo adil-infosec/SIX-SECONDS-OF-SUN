@@ -28,6 +28,22 @@ export function scannerTouches(sc: Scanner, time: number, p: Vec2): boolean {
   return inScannerLane(sc, p) && Math.abs(sweepCoord(sc, p) - scannerPosition(sc, time)) <= SCANNER_HIT_DISTANCE;
 }
 
+/**
+ * 0..1 loudness for the scanner fire hum: rises as the nearest band nears the
+ * keeper (quieter when the keeper is outside its lane), with a faint floor so
+ * a room with scanners is never silent about them. 0 when there are none.
+ */
+export function scannerProximity(scanners: readonly Scanner[], positions: readonly number[], p: Vec2): number {
+  if (scanners.length === 0) return 0;
+  let loudest = 0;
+  scanners.forEach((sc, i) => {
+    const d = Math.abs(sweepCoord(sc, p) - (positions[i] ?? 0));
+    const reach = inScannerLane(sc, p) ? 1 : 0.35;
+    loudest = Math.max(loudest, reach * Math.max(0, 1 - d / 260));
+  });
+  return Math.max(0.12, loudest);
+}
+
 /** True when the band will touch `p` within the next 0.35 s if it stays put. */
 export function scannerWarns(sc: Scanner, time: number, p: Vec2): boolean {
   if (!inScannerLane(sc, p)) return false;
