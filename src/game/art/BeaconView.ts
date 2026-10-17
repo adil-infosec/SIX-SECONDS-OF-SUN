@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { CSS_COLORS, DEPTH, FONT_UI, PALETTE } from '../config';
 import type { Vec2 } from '../systems/math';
-import { TEXTURE_KEYS } from './ProceduralTextures';
+import { glowKey, TEXTURE_KEYS, type GlowColor } from './ProceduralTextures';
 
 const PULSE_INTERVAL_MS = 1800;
 
@@ -44,15 +44,15 @@ export class BeaconView {
     this.bowl = scene.add.graphics().setDepth(DEPTH.beacon);
     this.drawBowl(false, size);
 
-    for (const [tint, scale, alpha] of [
-      [PALETTE.fire, 0.42, 0.9],
-      [PALETTE.amber, 0.28, 0.95],
-      [PALETTE.gold, 0.16, 1],
-    ] as const) {
+    const layers: [GlowColor, number, number][] = [
+      ['fire', 0.42, 0.9],
+      ['amber', 0.28, 0.95],
+      ['gold', 0.16, 1],
+    ];
+    for (const [color, scale, alpha] of layers) {
       this.flame.push(
         scene.add
-          .image(pos.x, pos.y, TEXTURE_KEYS.glow)
-          .setTint(tint)
+          .image(pos.x, pos.y, glowKey(color))
           .setScale(scale * size)
           .setAlpha(alpha)
           .setBlendMode(Phaser.BlendModes.ADD)
@@ -62,13 +62,13 @@ export class BeaconView {
     }
     this.core = scene.add.circle(pos.x, pos.y, 5 * size, 0xfff4d6).setDepth(DEPTH.beacon).setVisible(false);
 
-    this.embers = scene.add.particles(pos.x, pos.y, TEXTURE_KEYS.ember, {
+    this.embers = scene.add.particles(pos.x, pos.y, TEXTURE_KEYS.sparks, {
+      frame: ['gold', 'amber', 'fire'],
       lifespan: { min: 900, max: 1500 },
       speedX: { min: -14, max: 14 },
       speedY: { min: -48, max: -16 },
       scale: { start: 0.9 * size, end: 0 },
       alpha: { start: 1, end: 0 },
-      tint: [PALETTE.gold, PALETTE.amber, PALETTE.fire],
       blendMode: Phaser.BlendModes.ADD,
       frequency: 140,
       quantity: 1,
@@ -115,8 +115,7 @@ export class BeaconView {
 
     // 0.25 s bloom (GDD §8.2).
     const bloom = this.scene.add
-      .image(this.pos.x, this.pos.y, TEXTURE_KEYS.glow)
-      .setTint(PALETTE.gold)
+      .image(this.pos.x, this.pos.y, glowKey('gold'))
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(DEPTH.light)
       .setScale(0.2)
@@ -132,8 +131,7 @@ export class BeaconView {
 
     if (this.primary) {
       this.roomLight = this.scene.add
-        .image(this.pos.x, this.pos.y, TEXTURE_KEYS.glow)
-        .setTint(PALETTE.amber)
+        .image(this.pos.x, this.pos.y, glowKey('amber'))
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(DEPTH.light)
         .setScale(4.2)

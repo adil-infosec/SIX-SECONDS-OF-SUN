@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { CSS_COLORS, FONT_UI, GAME_WIDTH, PALETTE, SCENE_KEYS } from '../config';
-import { TEXTURE_KEYS } from '../art/ProceduralTextures';
+import { glowKey } from '../art/ProceduralTextures';
 
 const CENTER_X = GAME_WIDTH / 2;
 const LOGO_Y = 190;
@@ -65,8 +65,7 @@ export class TitleScene extends Phaser.Scene {
   /** Gold sun with a dark moon offset over it, ringed by clock ticks. */
   private drawEclipseLogo(): void {
     this.add
-      .image(CENTER_X, LOGO_Y, TEXTURE_KEYS.glow)
-      .setTint(PALETTE.amber)
+      .image(CENTER_X, LOGO_Y, glowKey('amber'))
       .setScale(1.5)
       .setAlpha(0.55)
       .setBlendMode(Phaser.BlendModes.ADD);

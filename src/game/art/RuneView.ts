@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { CSS_COLORS, DEPTH, FONT_UI, PALETTE } from '../config';
 import type { Vec2 } from '../systems/math';
 import type { RunePhase } from '../systems/RuneSystem';
-import { TEXTURE_KEYS } from './ProceduralTextures';
+import { glowKey, TEXTURE_KEYS } from './ProceduralTextures';
 
 const DISK_RADIUS = 20;
 const RING_RADIUS = 26;
@@ -35,8 +35,7 @@ export class RuneView {
     drawSigil(base, pos, PALETTE.violet, 0.8);
 
     this.glow = scene.add
-      .image(pos.x, pos.y, TEXTURE_KEYS.glow)
-      .setTint(PALETTE.activated)
+      .image(pos.x, pos.y, glowKey('activated'))
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(DEPTH.rune)
       .setScale(0.5)
@@ -49,12 +48,12 @@ export class RuneView {
 
     this.ring = scene.add.graphics().setDepth(DEPTH.rune);
 
-    this.sparks = scene.add.particles(pos.x, pos.y, TEXTURE_KEYS.ember, {
+    this.sparks = scene.add.particles(pos.x, pos.y, TEXTURE_KEYS.sparks, {
+      frame: ['activated', 'ice'],
       lifespan: { min: 350, max: 650 },
       speed: { min: 60, max: 140 },
       scale: { start: 0.8, end: 0 },
       alpha: { start: 1, end: 0 },
-      tint: [PALETTE.activated, PALETTE.ice],
       blendMode: Phaser.BlendModes.ADD,
       emitting: false,
     });
@@ -88,7 +87,7 @@ export class RuneView {
     this.sparks.explode(SPARKS);
 
     const label = this.scene.add
-      .text(this.pos.x, this.pos.y + 44, 'SHADOW LOCK', {
+      .text(this.pos.x, this.pos.y - 44, 'SHADOW LOCK', {
         fontFamily: FONT_UI,
         fontSize: '15px',
         fontStyle: 'bold',
@@ -101,7 +100,7 @@ export class RuneView {
     this.scene.tweens.add({ targets: label, scale: 1, duration: 180, ease: 'Back.easeOut' });
     this.scene.tweens.add({
       targets: label,
-      y: label.y + 18,
+      y: label.y - 18,
       alpha: 0,
       delay: 700,
       duration: 700,

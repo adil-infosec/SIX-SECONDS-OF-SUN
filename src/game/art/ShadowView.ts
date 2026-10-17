@@ -27,6 +27,8 @@ export class ShadowView {
     if (!wedge) return;
     const [nl, fl, fr, nr] = wedge;
     const c = this.color;
+    // Canvas ignores gradients and keeps this solid fill; WebGL replaces it below.
+    g.fillStyle(c, 0.5);
     // WebGL maps the gradient's TL/TR/BL colors to a triangle's three vertices.
     g.fillGradientStyle(c, c, c, c, NEAR_ALPHA, NEAR_ALPHA, FAR_ALPHA, FAR_ALPHA);
     g.fillTriangle(nl.x, nl.y, nr.x, nr.y, fl.x, fl.y);

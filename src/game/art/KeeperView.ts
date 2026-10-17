@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { DEPTH, PALETTE } from '../config';
 import { PLAYER_RADIUS } from '../systems/MovementSystem';
 import type { Vec2 } from '../systems/math';
-import { TEXTURE_KEYS } from './ProceduralTextures';
+import { glowKey } from './ProceduralTextures';
 
 /** The lightkeeper: off-white body, gold clockwork brace, a notch showing which way they face. */
 export class KeeperView {
@@ -11,8 +11,7 @@ export class KeeperView {
 
   constructor(scene: Phaser.Scene, pos: Vec2) {
     const aura = scene.add
-      .image(0, 0, TEXTURE_KEYS.glow)
-      .setTint(PALETTE.ice)
+      .image(0, 0, glowKey('ice'))
       .setBlendMode(Phaser.BlendModes.ADD)
       .setScale(0.32)
       .setAlpha(0.3);

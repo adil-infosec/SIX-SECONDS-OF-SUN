@@ -7,7 +7,7 @@ Updated at the end of every gate. Nothing below counts as done without command o
 |---|---|---|
 | G0 | Game boots locally | **Done.** Typecheck, unit tests and production build pass. Verified in the browser on 2026-10-17: WebGL renderer, title screen, no game console errors, FIT scaling letterboxes correctly. |
 | G1 | Ignition opens a gate (room 1) | **Done.** Automated `RoomSim` playthrough clears room 1 under par. Played in the browser on 2026-10-17 with real key presses: Enter starts, `E` lights the beacon (bloom, `BEACON LIT`, room light, pulses), gate retracts, portal exit, clear screen 0:17.2 with 3 stars. Gate blocks without the beacon. `R`, `Esc`, blur auto-pause, `M` and Enter-to-title all work. |
-| G2 | Caster shadow powers rune (room 2) | Not started |
+| G2 | Caster shadow powers rune (room 2) | **Logic done, browser check partial.** 79 tests pass, including a room 2 playthrough under par and routes that must not open the gate. In the browser (Canvas mode, 2026-10-17): room 1 → NEXT CHAMBER → room 2 works, the shadow wedge, rune charge ring and hint show, and the rune charged under the shadow. **Not yet seen in the browser:** rune fully powered, `SHADOW LOCK`, gate opening, and any G2 visuals in WebGL. The machine ran out of memory and the browser pane was hidden. |
 | G3 | 6 s echo alone holds the gate (room 3) | Not started |
 | G4 | Scanner shelter and damage rules (room 4) | Not started |
 | G5 | All shipped levels cleared, results, ending, level select | Not started |
@@ -29,14 +29,18 @@ Updated at the end of every gate. Nothing below counts as done without command o
 ## Bugs found in browser QA
 - **Quick `E` taps were ignored (fixed).** Phaser processes all of a frame's key events together, so a keydown and keyup inside one frame cleared `JustDown` before `update()` saw it. Action keys (`E`, `R`, `Esc`, `M`, `Enter`) now use `keydown-*` events that queue into a set, which `update()` drains once per frame.
 
+- **Glows turned white in Canvas mode (fixed).** Phaser's Canvas renderer ignores tints, so glows and embers are now generated already colored (`glowKey()`, `sparks` frames). The shadow also sets a solid fill, because Canvas ignores gradients.
+- **WebGL failing mid-boot left a dead page (fixed, not force-tested).** Under memory pressure the browser made a WebGL context, then a Phaser shader or framebuffer failed. `Phaser.AUTO` does not fall back in that case. `main.ts` now catches a boot error and restarts once on Canvas. `?renderer=canvas` forces Canvas for testing.
+
 ## Decisions made
 - **Engine stays on Phaser 3** (3.90.0, last 3.x) even though Phaser 4 is out, because the GDD and master prompt fix Phaser 3.
 - **Naming:** the code uses `runes` (as in the GDD data contract). The GDD's "glyph" means the same thing.
 - **Vite `base: './'`** so the same build works on GitHub Pages, Netlify or Vercel.
+- **Hints are data:** each hint has a position and `beforeIgnite` / `afterIgnite`. An `E` key cap appears over any unlit brazier in range, so rooms need fewer text hints.
 
 ## Open items for the owner
 - **LICENSE:** the public repo needs a license choice (for example MIT) and the copyright holder's name.
-- **GitHub remote:** no remote yet. `gh` CLI is not installed. The repo has to be created on GitHub and set as `origin`.
+- **GitHub push:** `origin` is https://github.com/adil-infosec/SIX-SECONDS-OF-SUN.git, but this PC's Git login is `sameerashraf500`, which cannot see that repo ("Repository not found"). Fix: add `sameerashraf500` as a collaborator on the repo, or sign in to Git as `adil-infosec`.
 - **Deadline date:** Day 3, 9:30 AM, with the calendar date still to confirm with organizers.
 
 ## Risks and blockers

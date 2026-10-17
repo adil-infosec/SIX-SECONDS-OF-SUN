@@ -68,7 +68,7 @@ export const LEVELS: readonly Level[] = [
       { x: 560, y: 384, w: 140, h: 34 },
     ],
     scanners: [],
-    hints: [{ text: 'KEEP THE RUNE IN SHADOW', position: { x: 660, y: 205 }, show: 'afterIgnite' }],
+    hints: [{ text: 'KEEP THE RUNE IN SHADOW', position: { x: 620, y: 196 }, show: 'afterIgnite' }],
   },
 ];
 

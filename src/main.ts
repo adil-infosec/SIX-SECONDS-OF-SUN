@@ -10,9 +10,9 @@ function showBootError(error: unknown): void {
   if (panel) panel.style.display = 'flex';
 }
 
-try {
+function createGame(type: number): Phaser.Game {
   const game = new Phaser.Game({
-    type: Phaser.AUTO,
+    type,
     parent: 'game',
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
@@ -27,11 +27,48 @@ try {
     },
     scene: [BootScene, TitleScene, GameScene],
   });
-
   // Dev-only handle for browser QA scripts; stripped from production builds.
   if (import.meta.env.DEV) {
     (window as unknown as { __ssos: Phaser.Game }).__ssos = game;
   }
+  return game;
+}
+
+/**
+ * Phaser.AUTO only falls back to Canvas when no WebGL context can be made.
+ * A context that is created but then fails while booting (lost GPU, a shader
+ * or framebuffer error under memory pressure) would leave a dead page, so
+ * catch that and restart once on the Canvas renderer. `?renderer=canvas`
+ * forces Canvas for testing.
+ */
+function start(): void {
+  const forceCanvas = new URLSearchParams(window.location.search).get('renderer') === 'canvas';
+  let game = createGame(forceCanvas ? Phaser.CANVAS : Phaser.AUTO);
+  if (forceCanvas) return;
+
+  const onBootError = (event: ErrorEvent): void => {
+    if (game.isRunning || game.config.renderType !== Phaser.WEBGL) return;
+    window.removeEventListener('error', onBootError);
+    event.preventDefault();
+    console.warn('WebGL failed while starting; restarting on the Canvas renderer.', event.error);
+    try {
+      game.destroy(true);
+    } catch {
+      // A half-booted WebGL game may not tear down cleanly; the new canvas replaces it.
+    }
+    document.querySelectorAll('#game canvas').forEach((canvas) => canvas.remove());
+    try {
+      game = createGame(Phaser.CANVAS);
+    } catch (error) {
+      showBootError(error);
+    }
+  };
+  window.addEventListener('error', onBootError);
+  game.events.once(Phaser.Core.Events.READY, () => window.removeEventListener('error', onBootError));
+}
+
+try {
+  start();
 } catch (error) {
   showBootError(error);
 }

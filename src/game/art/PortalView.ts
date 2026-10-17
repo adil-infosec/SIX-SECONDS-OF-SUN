@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DEPTH, PALETTE } from '../config';
 import type { Vec2 } from '../systems/math';
-import { TEXTURE_KEYS } from './ProceduralTextures';
+import { glowKey } from './ProceduralTextures';
 
 /** Exit portal: dim while the gate is sealed, a bright spinning spiral once it can be used. */
 export class PortalView {
@@ -16,8 +16,7 @@ export class PortalView {
     this.scene = scene;
     this.pos = pos;
     this.glow = scene.add
-      .image(pos.x, pos.y, TEXTURE_KEYS.glow)
-      .setTint(PALETTE.gold)
+      .image(pos.x, pos.y, glowKey('gold'))
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(DEPTH.portal)
       .setScale(0.5)
