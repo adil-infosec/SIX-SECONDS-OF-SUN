@@ -53,7 +53,7 @@ export class TitleScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    const begin = () => this.scene.start(SCENE_KEYS.game, { levelId: 1 });
+    const begin = () => this.scene.start(SCENE_KEYS.levelSelect);
     this.input.keyboard?.once('keydown-ENTER', begin);
     this.input.once('pointerdown', begin);
   }

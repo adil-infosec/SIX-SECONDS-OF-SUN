@@ -31,29 +31,36 @@ export function showFailOverlay(scene: Phaser.Scene): Phaser.GameObjects.Contain
   return overlay;
 }
 
-export function showClearOverlay(
-  scene: Phaser.Scene,
-  title: string,
-  clearTime: number,
-  parTime: number,
-  stars: StarCount,
-  continueLabel: string,
-): Phaser.GameObjects.Container {
+export type ClearSummary = {
+  title: string;
+  clearTime: number;
+  parTime: number;
+  stars: StarCount;
+  hits: number;
+  bestTime: number;
+  bestStars: StarCount;
+  newBestTime: boolean;
+  newBestStars: boolean;
+  continueLabel: string;
+};
+
+export function showClearOverlay(scene: Phaser.Scene, r: ClearSummary): Phaser.GameObjects.Container {
+  const { title, clearTime, parTime, stars, continueLabel } = r;
   const dim = scene.add.rectangle(CX, CY, GAME_WIDTH, GAME_HEIGHT, PALETTE.night, 0.72);
   const panel = scene.add.graphics();
   panel.fillStyle(PALETTE.slate, 0.96);
-  panel.fillRoundedRect(CX - 220, CY - 130, 440, 260, 14);
+  panel.fillRoundedRect(CX - 240, CY - 140, 480, 290, 14);
   panel.lineStyle(2, PALETTE.gold, 0.8);
-  panel.strokeRoundedRect(CX - 220, CY - 130, 440, 260, 14);
+  panel.strokeRoundedRect(CX - 240, CY - 140, 480, 290, 14);
 
-  const heading = text(scene, CX, CY - 92, 'CHAMBER CLEAR', 28, CSS_COLORS.gold, true).setLetterSpacing(6);
-  const name = text(scene, CX, CY - 56, title, 16, CSS_COLORS.text);
+  const heading = text(scene, CX, CY - 102, 'CHAMBER CLEAR', 28, CSS_COLORS.gold, true).setLetterSpacing(6);
+  const name = text(scene, CX, CY - 66, title, 16, CSS_COLORS.text);
 
   const starGfx = scene.add.graphics();
   for (let i = 0; i < 3; i++) {
     const x = CX + (i - 1) * 48;
     const filled = i < stars;
-    const points = starPoints(x, CY - 6, 17, 7.5);
+    const points = starPoints(x, CY - 16, 17, 7.5);
     if (filled) {
       starGfx.fillStyle(PALETTE.gold, 1);
       starGfx.fillPoints(points, true);
@@ -63,24 +70,37 @@ export function showClearOverlay(
     }
   }
 
+  const hitsLabel = r.hits === 0 ? 'NO HITS' : r.hits === 1 ? '1 HIT' : `${r.hits} HITS`;
   const time = scene.add
-    .text(CX, CY + 40, `TIME ${formatClearTime(clearTime)}   ·   PAR ${formatClearTime(parTime)}`, {
+    .text(CX, CY + 26, `TIME ${formatClearTime(clearTime)}   ·   PAR ${formatClearTime(parTime)}   ·   ${hitsLabel}`, {
       fontFamily: FONT_MONO,
       fontSize: '15px',
       color: CSS_COLORS.muted,
     })
     .setOrigin(0.5);
-  const keys = text(scene, CX, CY + 92, `ENTER  ${continueLabel}      R  REPLAY`, 14, CSS_COLORS.text).setLetterSpacing(3);
+  const isNew = r.newBestTime || r.newBestStars;
+  const best = scene.add
+    .text(
+      CX,
+      CY + 56,
+      isNew
+        ? `NEW BEST${r.newBestTime ? '  ·  ' + formatClearTime(r.bestTime) : ''}${r.newBestStars ? '  ·  ' + '★'.repeat(r.bestStars) : ''}`
+        : `BEST ${formatClearTime(r.bestTime)}   ·   ${'★'.repeat(r.bestStars)}`,
+      { fontFamily: FONT_MONO, fontSize: '14px', color: isNew ? CSS_COLORS.activated : CSS_COLORS.muted },
+    )
+    .setOrigin(0.5);
+  const keys = text(scene, CX, CY + 106, `ENTER  ${continueLabel}     R  REPLAY     ESC  CHAMBERS`, 13, CSS_COLORS.text)
+    .setLetterSpacing(2);
 
   const overlay = scene.add
-    .container(0, 0, [dim, panel, heading, name, starGfx, time, keys])
+    .container(0, 0, [dim, panel, heading, name, starGfx, time, best, keys])
     .setDepth(DEPTH.overlay)
     .setAlpha(0);
   scene.tweens.add({ targets: overlay, alpha: 1, duration: 260 });
   return overlay;
 }
 
-function starPoints(cx: number, cy: number, outer: number, inner: number): Phaser.Math.Vector2[] {
+export function starPoints(cx: number, cy: number, outer: number, inner: number): Phaser.Math.Vector2[] {
   const points: Phaser.Math.Vector2[] = [];
   for (let i = 0; i < 10; i++) {
     const r = i % 2 === 0 ? outer : inner;

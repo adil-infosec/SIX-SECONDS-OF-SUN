@@ -56,5 +56,7 @@ export type Level = {
   checkpoints: Vec2[];
   /** Whether `Q` (the six-second echo) is available in this chamber. */
   echo: boolean;
+  /** The last chamber: its beacon is the eclipse engine and clearing it plays the sunrise. */
+  finale: boolean;
   hints: Hint[];
 };

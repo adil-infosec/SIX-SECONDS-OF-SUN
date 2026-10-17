@@ -54,6 +54,7 @@ export const LEVELS: readonly Level[] = [
     scanners: [],
     checkpoints: [],
     echo: false,
+    finale: false,
     hints: [{ text: 'Press E to light the beacon', position: { x: 425, y: 200 }, show: 'start', hide: 'ignite' }],
   },
   {
@@ -76,6 +77,7 @@ export const LEVELS: readonly Level[] = [
     scanners: [],
     checkpoints: [],
     echo: false,
+    finale: false,
     hints: [{ text: 'KEEP THE RUNE IN SHADOW', position: { x: 620, y: 196 }, show: 'ignite', hide: 'runes' }],
   },
   {
@@ -98,6 +100,7 @@ export const LEVELS: readonly Level[] = [
     scanners: [],
     checkpoints: [],
     echo: true,
+    finale: false,
     hints: [{ text: 'HOLD THE SHADOW, THEN PRESS Q', position: { x: 450, y: 196 }, show: 'ignite', hide: 'echo' }],
   },
   {
@@ -121,6 +124,7 @@ export const LEVELS: readonly Level[] = [
     scanners: [{ axis: 'vertical', min: 570, max: 760, from: 40, to: 500, period: 4.8, width: 10, phase: 0 }],
     checkpoints: [],
     echo: true,
+    finale: false,
     hints: [
       { text: 'LEAVE AN ECHO ON THE LINE', position: { x: 400, y: 180 }, show: 'ignite', hide: 'echo' },
       { text: "SHELTER IN YOUR ECHO'S SHADOW", position: { x: 400, y: 160 }, show: 'echo', hide: 'never' },
@@ -151,6 +155,7 @@ export const LEVELS: readonly Level[] = [
     scanners: [{ axis: 'vertical', min: 400, max: 760, from: 270, to: 350, period: 4.4, width: 10, phase: 0 }],
     checkpoints: [],
     echo: true,
+    finale: false,
     hints: [
       { text: 'RELAYS MUST BURN TOO', position: { x: 640, y: 470 }, show: 'start', hide: 'relays' },
       { text: 'MATCH THE ANGLE', position: { x: 420, y: 80 }, show: 'ignite', hide: 'runes' },
@@ -185,6 +190,7 @@ export const LEVELS: readonly Level[] = [
     ],
     checkpoints: [{ x: 440, y: 300 }],
     echo: true,
+    finale: true,
     hints: [
       { text: 'LIGHT THE SUN AND BOTH RELAYS', position: { x: 470, y: 95 }, show: 'start', hide: 'relays' },
       { text: "SHELTER IN YOUR ECHO'S SHADOW", position: { x: 520, y: 70 }, show: 'echo', hide: 'never' },

@@ -3,6 +3,8 @@ import { CHAMBER_BOUNDS, CSS_COLORS, DEPTH, FONT_UI, PALETTE, SCENE_KEYS } from 
 import { getLevel, hasLevel } from '../data/levels';
 import type { Hint, Level } from '../data/levelTypes';
 import { BeaconView } from '../art/BeaconView';
+import { CheckpointView } from '../art/CheckpointView';
+import { EclipseEngineView } from '../art/EclipseEngineView';
 import { EchoView } from '../art/EchoView';
 import { createInteriorMask, drawChamber } from '../art/ChamberArt';
 import { GateView, type GateCondition } from '../art/GateView';
@@ -11,13 +13,16 @@ import { PortalView } from '../art/PortalView';
 import { RuneView } from '../art/RuneView';
 import { ScannerView } from '../art/ScannerView';
 import { ShadowView } from '../art/ShadowView';
+import { getProgress, setPreference, setProgress } from '../progressState';
 import { echoAlpha } from '../systems/EchoSystem';
+import { recordClear } from '../systems/Progress';
 import { RoomSim, STARTING_HEARTS, type FrameInput, type SimEvent } from '../systems/RoomSim';
 import { chargeFraction } from '../systems/RuneSystem';
 import { computeStars } from '../systems/Scoring';
 import { clampDelta } from '../systems/time';
 import { HUD } from '../ui/HUD';
 import { MemoryMeter } from '../ui/MemoryMeter';
+import { flash, shake } from '../ui/feedback';
 import { createPauseOverlay, showClearOverlay, showFailOverlay } from '../ui/Overlays';
 
 type GameSceneData = { levelId?: number };
@@ -61,6 +66,9 @@ export class GameScene extends Phaser.Scene {
   private scanners: ScannerView[] = [];
   /** The echo's shadow drawn again over scanner light, so shelter visibly blocks the fire. */
   private bandShade: ShadowView | null = null;
+  private checkpoints: CheckpointView[] = [];
+  private engine: EclipseEngineView | null = null;
+  private finalClear: { clearTime: number; stars: number } | null = null;
   private darkness!: Phaser.GameObjects.Rectangle;
   private hints: { hint: Hint; text: Phaser.GameObjects.Text; gone: boolean }[] = [];
   private pauseOverlay!: Phaser.GameObjects.Container;
@@ -85,6 +93,9 @@ export class GameScene extends Phaser.Scene {
     this.memory = null;
     this.scanners = [];
     this.bandShade = null;
+    this.checkpoints = [];
+    this.engine = null;
+    this.finalClear = null;
     this.pressed.clear();
   }
 
@@ -120,6 +131,7 @@ export class GameScene extends Phaser.Scene {
         farAlpha: 0.75,
       });
     }
+    this.checkpoints = this.level.checkpoints.map((p) => new CheckpointView(this, p));
     this.primary = new BeaconView(this, this.level.primaryBeacon, true, mask);
     this.relays = this.level.relayBeacons.map((p) => new BeaconView(this, p, false, mask));
     this.gate = new GateView(this, this.level.gate);
@@ -193,7 +205,9 @@ export class GameScene extends Phaser.Scene {
 
     if (this.over) {
       this.portal.update(dt);
-      if (pressed.has('confirm') && this.canContinue) this.continueAfterWin();
+      this.engine?.update(dt);
+      if (this.canContinue && pressed.has('confirm')) this.continueAfterWin();
+      else if (this.canContinue && pressed.has('pause')) this.scene.start(SCENE_KEYS.levelSelect, { focus: this.levelId });
       return;
     }
 
@@ -226,6 +240,7 @@ export class GameScene extends Phaser.Scene {
     this.primary.setInRange(ignitable === 0);
     this.relays.forEach((relay, i) => relay.setInRange(ignitable === i + 1));
     this.primary.update(time);
+    this.engine?.update(dt);
     for (const relay of this.relays) relay.update(time);
     this.portal.update(dt);
     this.hud.setTime(s.elapsed);
@@ -236,7 +251,11 @@ export class GameScene extends Phaser.Scene {
       case 'ignited': {
         const view = event.primary ? this.primary : this.relays[event.relayIndex];
         view?.ignite();
-        this.cameras.main.shake(80, 0.003);
+        shake(this, 80, 0.003);
+        if (this.level.finale) {
+          if (event.primary) this.engine = new EclipseEngineView(this, this.level.primaryBeacon);
+          this.engine?.setPower(this.sim.state.relaysLit.filter(Boolean).length);
+        }
         if (event.primary) {
           this.tweens.add({ targets: this.darkness, alpha: 0, duration: 600, ease: 'Sine.easeOut' });
           this.dismissHints('ignite');
@@ -254,11 +273,14 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'hit':
         this.keeper.hit();
-        this.cameras.main.shake(120, 0.006);
-        this.cameras.main.flash(120, 246, 91, 62, false);
+        shake(this, 120, 0.006);
+        flash(this, 120, 246, 91, 62);
         this.hud.setHearts(event.hearts, STARTING_HEARTS);
         break;
       case 'respawned':
+        break;
+      case 'checkpoint':
+        this.checkpoints[event.index]?.reach();
         break;
       case 'failed':
         this.onFailed();
@@ -338,7 +360,7 @@ export class GameScene extends Phaser.Scene {
     this.over = true;
     this.hud.setTime(clearTime);
     this.portal.burst();
-    this.cameras.main.shake(120, 0.004);
+    shake(this, 120, 0.004);
     this.tweens.add({
       targets: this.keeper.container,
       x: this.level.goal.x,
@@ -350,17 +372,36 @@ export class GameScene extends Phaser.Scene {
       ease: 'Cubic.easeIn',
     });
     const stars = computeStars(clearTime, hits, this.level.parTime);
-    const label = hasLevel(this.levelId + 1) ? 'NEXT CHAMBER' : 'TITLE';
+    const result = recordClear(getProgress(), this.levelId, clearTime, stars);
+    setProgress(result.progress);
+    const record = result.progress.best[this.levelId]!;
+    if (this.level.finale) this.finalClear = { clearTime, stars };
+    const label = this.level.finale ? 'SUNRISE' : hasLevel(this.levelId + 1) ? 'NEXT CHAMBER' : 'CHAMBERS';
     this.time.delayedCall(WIN_OVERLAY_DELAY_MS, () => {
-      showClearOverlay(this, this.level.title, clearTime, this.level.parTime, stars, label);
+      showClearOverlay(this, {
+        title: this.level.title,
+        clearTime,
+        parTime: this.level.parTime,
+        stars,
+        hits,
+        bestTime: record.bestTime,
+        bestStars: record.bestStars,
+        newBestTime: result.newBestTime,
+        newBestStars: result.newBestStars,
+        continueLabel: label,
+      });
       this.canContinue = true;
     });
   }
 
   private continueAfterWin(): void {
+    if (this.finalClear) {
+      this.scene.start(SCENE_KEYS.ending, this.finalClear);
+      return;
+    }
     const next = this.levelId + 1;
     if (hasLevel(next)) this.scene.start(SCENE_KEYS.game, { levelId: next });
-    else this.scene.start(SCENE_KEYS.title);
+    else this.scene.start(SCENE_KEYS.levelSelect, { focus: this.levelId });
   }
 
   private autoPause(): void {
@@ -383,5 +424,6 @@ export class GameScene extends Phaser.Scene {
   private toggleMute(): void {
     this.sound.mute = !this.sound.mute;
     this.hud.setMuted(this.sound.mute);
+    setPreference({ muted: this.sound.mute });
   }
 }

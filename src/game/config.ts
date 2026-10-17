@@ -74,5 +74,7 @@ export const FONT_MONO = "Consolas, 'Courier New', monospace";
 export const SCENE_KEYS = {
   boot: 'BootScene',
   title: 'TitleScene',
+  levelSelect: 'LevelSelectScene',
   game: 'GameScene',
+  ending: 'EndingScene',
 } as const;
