@@ -8,7 +8,7 @@ import type { Vec2 } from '../game/systems/math';
  * main.ts imports this only when `import.meta.env.DEV` is true.
  */
 
-type KeyName = 'w' | 'a' | 's' | 'd' | 'e' | 'q' | 'r' | 'm' | 'esc' | 'enter';
+type KeyName = 'w' | 'a' | 's' | 'd' | 'e' | 'q' | 'r' | 'm' | 'esc' | 'enter' | '1' | '2' | '3' | '4' | '5';
 
 const CODES: Record<KeyName, [string, string, number]> = {
   w: ['w', 'KeyW', 87],
@@ -21,12 +21,30 @@ const CODES: Record<KeyName, [string, string, number]> = {
   m: ['m', 'KeyM', 77],
   esc: ['Escape', 'Escape', 27],
   enter: ['Enter', 'Enter', 13],
+  '1': ['1', 'Digit1', 49],
+  '2': ['2', 'Digit2', 50],
+  '3': ['3', 'Digit3', 51],
+  '4': ['4', 'Digit4', 52],
+  '5': ['5', 'Digit5', 53],
 };
 
 // The harness reaches into scene internals on purpose; it is test tooling.
 type AnyScene = any;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+export type QaHarness = {
+  key: (name: KeyName, type: 'keydown' | 'keyup') => void;
+  tap: (name: KeyName) => Promise<void>;
+  drive: (target: Vec2, maxMs?: number) => Promise<{ x: number; y: number; won: boolean }>;
+  goto: (levelId: number) => Promise<void>;
+  sleep: (ms: number) => Promise<void>;
+  scene: () => AnyScene;
+  sim: () => AnyScene;
+  active: () => string[];
+  game: Phaser.Game;
+  audio: typeof audio;
+};
 
 export function installQaHarness(game: Phaser.Game): void {
   const key = (name: KeyName, type: 'keydown' | 'keyup') => {
@@ -90,5 +108,7 @@ export function installQaHarness(game: Phaser.Game): void {
     await sleep(500);
   };
 
-  (window as unknown as { __qa: unknown }).__qa = { key, tap, drive, goto, sleep, scene, sim, active, game, audio };
+  const qa = { key, tap, drive, goto, sleep, scene, sim, active, game, audio };
+  (window as unknown as { __qa: unknown }).__qa = qa;
+  void import('./trailerDirector').then((m) => m.installTrailerDirector(qa));
 }

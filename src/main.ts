@@ -29,6 +29,8 @@ function createGame(type: number): Phaser.Game {
     render: {
       antialias: true,
       pixelArt: false,
+      // Trailer capture records the canvas; keep each frame until it is read.
+      preserveDrawingBuffer: CAPTURE,
     },
     // All sound comes from the game's own WebAudio synth (audio/AudioEngine.ts).
     audio: { noAudio: true },

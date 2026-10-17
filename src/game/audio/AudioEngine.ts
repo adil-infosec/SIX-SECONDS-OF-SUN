@@ -129,6 +129,14 @@ export class AudioEngine {
     return this.ctx?.state ?? 'none';
   }
 
+  /** The final mix as a MediaStream, for recording the trailer; null without audio. */
+  captureStream(): MediaStream | null {
+    if (!this.ctx) return null;
+    const tap = this.ctx.createMediaStreamDestination();
+    this.analyser.connect(tap);
+    return tap.stream;
+  }
+
   sfx(name: SfxName): void {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
