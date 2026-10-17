@@ -11,21 +11,28 @@ import type { QaHarness } from './qaHarness';
  * between highlights) happens while the recorder is paused, like a trim in
  * an editor. The finished MP4 is uploaded to the dev server, which saves it
  * in D:\Adil\recordings.
+ *
+ * `?capture&record` starts a full take on the first click, for recording in
+ * an ordinary browser window without the console.
  */
 
 type Status = {
   phase: 'idle' | 'recording' | 'saving' | 'done' | 'failed';
   shot: string;
   recordedMs: number;
+  /** One line per finished shot: label, then the keeper and room state in gameplay. */
+  log: string[];
   saved?: string;
   bytes?: number;
   error?: string;
 };
 
+type Options = { smoke?: boolean; dry?: boolean };
+
 const MIME = 'video/mp4;codecs=avc1.42E01E,mp4a.40.2';
 
 export function installTrailerDirector(qa: QaHarness): void {
-  const status: Status = { phase: 'idle', shot: '', recordedMs: 0 };
+  const status: Status = { phase: 'idle', shot: '', recordedMs: 0, log: [] };
   (window as unknown as { __trailerStatus: Status }).__trailerStatus = status;
 
   const sim = () => qa.sim();
@@ -83,41 +90,75 @@ export function installTrailerDirector(qa: QaHarness): void {
     await sleep(60);
   };
 
-  async function record(name: string, smoke: boolean): Promise<Status> {
+  /** `smoke` records only the first card; `dry` plays the whole timeline without recording. */
+  async function record(name: string, { smoke = false, dry = false }: Options): Promise<Status> {
     if (status.phase === 'recording' || status.phase === 'saving') return status;
-    Object.assign(status, { phase: 'recording', shot: 'setup', recordedMs: 0, saved: undefined, bytes: undefined, error: undefined });
+    Object.assign(status, { phase: 'recording', shot: 'setup', recordedMs: 0, log: [], saved: undefined, bytes: undefined, error: undefined });
+    // Losing focus pauses the game and releases held keys, which ruins a shot.
+    let blurs = 0;
+    const onBlur = () => blurs++;
+    window.addEventListener('blur', onBlur);
+    // A page that is off screen can drop to 1 frame a second while
+    // document.hidden stays false, so watch the frames themselves.
+    let watching = true;
+    let frames = 0;
+    let lastFrame = performance.now();
+    let longestGap = 0;
+    const watch = (now: number) => {
+      frames++;
+      longestGap = Math.max(longestGap, now - lastFrame);
+      lastFrame = now;
+      if (watching) requestAnimationFrame(watch);
+    };
+    requestAnimationFrame(watch);
     try {
-      if (qa.audio.state !== 'running') throw new Error('Audio is not running: press a key or click the game first.');
+      if (!dry && qa.audio.state !== 'running') throw new Error('Audio is not running: press a key or click the game first.');
       qa.audio.setMuted(false);
       const canvas = document.querySelector('canvas');
       if (!canvas) throw new Error('No game canvas.');
-      const stream = canvas.captureStream(60);
-      const sound = qa.audio.captureStream();
-      sound?.getAudioTracks().forEach((t) => stream.addTrack(t));
-      const recorder = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: 10_000_000, audioBitsPerSecond: 192_000 });
+      let recorder: MediaRecorder | null = null;
       const chunks: Blob[] = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
+      if (!dry) {
+        const stream = canvas.captureStream(60);
+        const sound = qa.audio.captureStream();
+        sound?.getAudioTracks().forEach((t) => stream.addTrack(t));
+        recorder = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: 10_000_000, audioBitsPerSecond: 192_000 });
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+      }
 
       let started = false;
       /** Records exactly `seconds` while `action` runs; the action may finish off camera. */
       const shot = async (label: string, seconds: number, action: () => Promise<void>) => {
-        if (document.hidden) throw new Error('The browser window was hidden; recording needs it on screen.');
+        if (!dry && document.hidden) throw new Error('The browser window was hidden; recording needs it on screen.');
         status.shot = label;
         if (!started) {
-          recorder.start(1000);
+          recorder?.start(1000);
           started = true;
         } else {
-          recorder.resume();
+          recorder?.resume();
         }
         const t0 = performance.now();
+        const blurs0 = blurs;
+        const frames0 = frames;
+        lastFrame = t0;
+        longestGap = 0;
         const run = action();
         await sleep(seconds * 1000);
-        recorder.pause();
-        status.recordedMs += performance.now() - t0;
+        recorder?.pause();
+        const ms = performance.now() - t0;
+        const fps = Math.round(((frames - frames0) * 1000) / ms);
+        // No frames at all leaves longestGap at 0, so count the time since the last one too.
+        const gap = Math.round(Math.max(longestGap, performance.now() - lastFrame));
+        status.recordedMs += ms;
         await run;
-        if (document.hidden) throw new Error('The browser window was hidden during a shot.');
+        if (!dry && document.hidden) throw new Error('The browser window was hidden during a shot.');
+        if (blurs !== blurs0) throw new Error(`The browser lost focus during "${label}"; leave it untouched while recording.`);
+        if (gap > 300) throw new Error(`The browser stopped drawing for ${gap} ms during "${label}"; keep it on screen.`);
+        const s = qa.active().includes('GameScene') ? sim()?.state : undefined;
+        const where = s ? `, keeper ${Math.round(s.keeper.x)},${Math.round(s.keeper.y)}${s.won ? ', won' : ''}` : '';
+        status.log.push(`${label}: ${fps} fps${where}`);
       };
       /** Off-camera work between shots. */
       const offscreen = async (label: string, action: () => Promise<void>) => {
@@ -141,12 +182,17 @@ export function installTrailerDirector(qa: QaHarness): void {
       };
       /** Stops the recorder and uploads the MP4 to the dev server. */
       const finish = async (): Promise<Status> => {
+        if (!recorder) {
+          Object.assign(status, { phase: 'done', shot: 'done (dry run)' });
+          return status;
+        }
         status.phase = 'saving';
         status.shot = 'saving';
+        const rec = recorder;
         const done = new Promise<void>((r) => {
-          recorder.onstop = () => r();
+          rec.onstop = () => r();
         });
-        recorder.stop();
+        rec.stop();
         await done;
         const blob = new Blob(chunks, { type: 'video/mp4' });
         const res = await fetch(`/__qa/recordings/${encodeURIComponent(name)}`, { method: 'POST', body: blob });
@@ -352,11 +398,48 @@ export function installTrailerDirector(qa: QaHarness): void {
       return await finish();
     } catch (e) {
       Object.assign(status, { phase: 'failed', error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      window.removeEventListener('blur', onBlur);
+      watching = false;
     }
     return status;
   }
 
-  type Recorder = { recordTrailer: (name?: string, opts?: { smoke?: boolean }) => Promise<Status> };
-  /** `smoke: true` records only the first card, to check the save path quickly. */
-  (qa as unknown as Recorder).recordTrailer = (name = 'six-seconds-of-sun-trailer.mp4', opts = {}) => record(name, !!opts.smoke);
+  type Recorder = { recordTrailer: (name?: string, opts?: Options) => Promise<Status> };
+  (qa as unknown as Recorder).recordTrailer = (name = 'six-seconds-of-sun-trailer.mp4', opts = {}) => record(name, opts);
+
+  const take = new URLSearchParams(window.location.search).get('record');
+  if (take !== null) {
+    // Local time, so the file name matches the clock.
+    const local = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000);
+    const stamp = local.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
+    const name = take || `trailer-${stamp}.mp4`;
+    window.addEventListener(
+      'pointerdown',
+      // The same click unlocks the audio; give the context a moment to resume.
+      () =>
+        void sleep(300)
+          .then(() => record(name, {}))
+          .then(async (s) => {
+            // The shot log goes next to the video, so a take can be checked without the browser.
+            const log = `/__qa/recordings/${encodeURIComponent(name.replace(/\.mp4$/, ''))}.log.json`;
+            await fetch(log, { method: 'POST', body: JSON.stringify(s, null, 2) }).catch(() => undefined);
+            showResult(s);
+          }),
+      { once: true },
+    );
+  }
+}
+
+/** Shows how a `?record` take ended. Only the canvas is recorded, so this never appears in the video. */
+function showResult(status: Status): void {
+  const note = document.createElement('div');
+  note.style.cssText =
+    'position:fixed;inset:auto 0 24px 0;margin:auto;width:fit-content;max-width:90vw;padding:12px 18px;border-radius:8px;' +
+    'background:#000c;color:#fff;font:16px/1.4 system-ui,sans-serif;z-index:10';
+  note.textContent =
+    status.phase === 'done'
+      ? `Saved ${status.saved} (${((status.bytes ?? 0) / 1e6).toFixed(1)} MB).`
+      : `Recording failed: ${(status.error ?? status.phase).replace(/\.?$/, '.')} Reload the page to try again.`;
+  document.body.appendChild(note);
 }
