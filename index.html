@@ -26,6 +26,11 @@
       #game canvas {
         display: block;
       }
+      /* Trailer capture (?capture): no cursor over the frame. */
+      body.capture,
+      body.capture #game canvas {
+        cursor: none;
+      }
       #boot-error {
         position: fixed;
         inset: 0;

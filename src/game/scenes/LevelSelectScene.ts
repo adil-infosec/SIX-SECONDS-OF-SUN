@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CSS_COLORS, FONT_MONO, FONT_UI, GAME_WIDTH, PALETTE, SCENE_KEYS, TOTAL_CHAMBERS } from '../config';
 import { audio } from '../audio/AudioEngine';
+import { CAPTURE } from '../captureMode';
 import { LEVELS } from '../data/levels';
 import { getProgress, setPreference } from '../progressState';
 import { formatClearTime } from '../systems/Scoring';
@@ -14,6 +15,11 @@ const CARD_H = 150;
 const GAP = 24;
 const GRID_X = (GAME_WIDTH - (COLS * CARD_W + (COLS - 1) * GAP)) / 2;
 const GRID_Y = 128;
+
+/** Highest playable chamber; capture mode opens all of them without saving. */
+function unlockedUpTo(): number {
+  return CAPTURE ? TOTAL_CHAMBERS : getProgress().unlocked;
+}
 
 /** Chamber list: six cards with best stars and time; locked chambers are dimmed. */
 export class LevelSelectScene extends Phaser.Scene {
@@ -36,7 +42,8 @@ export class LevelSelectScene extends Phaser.Scene {
     const progress = getProgress();
     const cleared = Object.keys(progress.best).length;
     const stars = Object.values(progress.best).reduce((sum, r) => sum + r.bestStars, 0);
-    this.selected = Math.min(TOTAL_CHAMBERS, Math.max(1, this.focus ?? progress.unlocked)) - 1;
+    // Capture mode starts from chamber 1 so recording takes go in order.
+    this.selected = Math.min(TOTAL_CHAMBERS, Math.max(1, this.focus ?? (CAPTURE ? 1 : unlockedUpTo()))) - 1;
 
     this.add
       .text(GAME_WIDTH / 2, 58, 'CHAMBERS', { fontFamily: FONT_UI, fontSize: '28px', fontStyle: 'bold', color: CSS_COLORS.gold })
@@ -50,7 +57,7 @@ export class LevelSelectScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    LEVELS.forEach((level, i) => this.drawCard(i, level.id, level.title, level.id <= progress.unlocked));
+    LEVELS.forEach((level, i) => this.drawCard(i, level.id, level.title, level.id <= unlockedUpTo()));
 
     this.add
       .text(GAME_WIDTH / 2, 482, 'ARROWS / WASD  SELECT     ENTER  PLAY     ESC  TITLE', {
@@ -100,7 +107,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private play(index: number): void {
     const level = LEVELS[index];
-    if (!level || level.id > getProgress().unlocked) {
+    if (!level || level.id > unlockedUpTo()) {
       audio.sfx('uiLocked');
       this.cameras.main.shake(90, 0.004);
       return;

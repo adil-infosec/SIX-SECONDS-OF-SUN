@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import { audio } from './game/audio/AudioEngine';
+import { CAPTURE } from './game/captureMode';
 import { GAME_HEIGHT, GAME_WIDTH, PALETTE } from './game/config';
 import { BootScene } from './game/scenes/BootScene';
 import { EndingScene } from './game/scenes/EndingScene';
 import { GameScene } from './game/scenes/GameScene';
 import { LevelSelectScene } from './game/scenes/LevelSelectScene';
 import { TitleScene } from './game/scenes/TitleScene';
+import { TrailerScene } from './game/scenes/TrailerScene';
 
 function showBootError(error: unknown): void {
   console.error('Six Seconds of Sun failed to start', error);
@@ -30,7 +32,7 @@ function createGame(type: number): Phaser.Game {
     },
     // All sound comes from the game's own WebAudio synth (audio/AudioEngine.ts).
     audio: { noAudio: true },
-    scene: [BootScene, TitleScene, LevelSelectScene, GameScene, EndingScene],
+    scene: [BootScene, TitleScene, LevelSelectScene, GameScene, EndingScene, TrailerScene],
   });
   // Dev-only handles for browser QA scripts; stripped from production builds.
   if (import.meta.env.DEV) {
@@ -49,6 +51,7 @@ function createGame(type: number): Phaser.Game {
  */
 function start(): void {
   audio.installUnlock(window);
+  if (CAPTURE) document.body.classList.add('capture');
   const forceCanvas = new URLSearchParams(window.location.search).get('renderer') === 'canvas';
   let game = createGame(forceCanvas ? Phaser.CANVAS : Phaser.AUTO);
   if (forceCanvas) return;

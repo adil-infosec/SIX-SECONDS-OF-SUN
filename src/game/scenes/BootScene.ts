@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENE_KEYS } from '../config';
 import { generateTextures } from '../art/ProceduralTextures';
 import { audio } from '../audio/AudioEngine';
+import { TRAILER } from '../captureMode';
 import { getProgress } from '../progressState';
 
 export class BootScene extends Phaser.Scene {
@@ -12,6 +13,6 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     generateTextures(this);
     audio.setMuted(getProgress().muted);
-    this.scene.start(SCENE_KEYS.title);
+    this.scene.start(TRAILER ? SCENE_KEYS.trailer : SCENE_KEYS.title);
   }
 }

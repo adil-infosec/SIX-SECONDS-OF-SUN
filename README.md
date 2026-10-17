@@ -37,6 +37,9 @@ npm run preview    # serve the production build
 ## Deployment
 `.github/workflows/deploy.yml` runs the tests, builds and publishes `dist/` to GitHub Pages on every push to `main`. One-time setup: repository **Settings → Pages → Source: GitHub Actions**. The build uses relative paths (`base: './'`), so the same `dist/` also works on any static host.
 
+## Trailer
+Recording links and steps: [docs/TRAILER_RECORDING_GUIDE.md](docs/TRAILER_RECORDING_GUIDE.md) (`?capture` for gameplay takes, `?trailer` for the title and explainer cards).
+
 ## Project layout
 - `src/game/scenes/`: Phaser scenes (boot, title, chamber list, chamber, ending)
 - `src/game/systems/`: pure, unit-tested game logic (`RoomSim` runs one chamber attempt)

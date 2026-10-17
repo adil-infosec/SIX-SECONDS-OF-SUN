@@ -77,4 +77,5 @@ export const SCENE_KEYS = {
   levelSelect: 'LevelSelectScene',
   game: 'GameScene',
   ending: 'EndingScene',
+  trailer: 'TrailerScene',
 } as const;

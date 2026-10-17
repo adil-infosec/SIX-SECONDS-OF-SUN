@@ -14,6 +14,7 @@ import { PortalView } from '../art/PortalView';
 import { RuneView } from '../art/RuneView';
 import { ScannerView } from '../art/ScannerView';
 import { ShadowView } from '../art/ShadowView';
+import { CAPTURE, CAPTURE_CAPTIONS } from '../captureMode';
 import { getProgress, setPreference, setProgress } from '../progressState';
 import { echoAlpha } from '../systems/EchoSystem';
 import { recordClear } from '../systems/Progress';
@@ -45,6 +46,8 @@ const KEY_HINTS = 'WASD MOVE   ·   E IGNITE   ·   R RETRY   ·   ESC PAUSE';
 const KEY_HINTS_ECHO = 'WASD MOVE   ·   E IGNITE   ·   Q ECHO   ·   R RETRY   ·   ESC PAUSE';
 const WIN_OVERLAY_DELAY_MS = 650;
 const FAIL_RESTART_DELAY_MS = 1300;
+/** How long the capture-mode caption stays before fading (seconds). */
+const CAPTION_SECONDS = 6.7;
 
 /** Which sound each simulation event plays; `won` is handled with the win sequence. */
 const EVENT_SOUNDS: Partial<Record<SimEvent['type'], SfxName | ((e: SimEvent) => SfxName)>> = {
@@ -169,11 +172,14 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setLetterSpacing(hint.show === 'ignite' ? 2 : 0)
         .setDepth(DEPTH.hint)
-        .setAlpha(hint.show === 'start' ? 1 : 0);
+        .setAlpha(hint.show === 'start' && !CAPTURE ? 1 : 0);
+      // In capture mode the shotlist caption owns the top of the screen first.
+      if (hint.show === 'start' && CAPTURE) this.tweens.add({ targets: text, alpha: 1, delay: CAPTION_SECONDS * 1000, duration: 400 });
       return { hint, text, gone: false };
     });
 
     this.hud = new HUD(this, this.level.id, this.level.title, this.level.echo ? KEY_HINTS_ECHO : KEY_HINTS);
+    if (CAPTURE) this.showCaptureCaption();
     if (this.level.echo) this.memory = new MemoryMeter(this);
     this.hud.setHearts(STARTING_HEARTS, STARTING_HEARTS);
     this.hud.setMuted(getProgress().muted);
@@ -345,6 +351,27 @@ export class GameScene extends Phaser.Scene {
         this.onWon(event.clearTime, event.hits);
         break;
     }
+  }
+
+  /** Trailer capture: the shotlist caption fades in over the top of the chamber, then away. */
+  private showCaptureCaption(): void {
+    const caption = CAPTURE_CAPTIONS[this.level.id];
+    if (!caption) return;
+    const band = this.add.rectangle(CHAMBER_BOUNDS.x + CHAMBER_BOUNDS.w / 2, 78, CHAMBER_BOUNDS.w, 52, PALETTE.night, 0.72);
+    const text = this.add
+      .text(band.x, band.y, caption, { fontFamily: FONT_UI, fontSize: '24px', fontStyle: 'bold', color: CSS_COLORS.text })
+      .setOrigin(0.5)
+      .setLetterSpacing(2);
+    const group = [band, text];
+    for (const o of group) o.setDepth(DEPTH.overlay - 1).setAlpha(0);
+    this.tweens.add({ targets: group, alpha: 1, delay: 300, duration: 500 });
+    this.tweens.add({
+      targets: group,
+      alpha: 0,
+      delay: (CAPTION_SECONDS - 0.7) * 1000,
+      duration: 700,
+      onComplete: () => group.forEach((o) => o.destroy()),
+    });
   }
 
   /** True once the event that removes this hint has already happened. */
