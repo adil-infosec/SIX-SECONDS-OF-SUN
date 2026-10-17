@@ -15,10 +15,16 @@ import { createPauseOverlay, showClearOverlay } from '../ui/Overlays';
 
 type GameSceneData = { levelId?: number };
 
-type Keys = Record<
-  'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd' | 'e' | 'r' | 'esc' | 'm' | 'enter',
-  Phaser.Input.Keyboard.Key
->;
+type MoveKeys = Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd', Phaser.Input.Keyboard.Key>;
+
+type Action = 'ignite' | 'restart' | 'pause' | 'mute' | 'confirm';
+const ACTION_KEYS: Record<Action, string> = {
+  ignite: 'E',
+  restart: 'R',
+  pause: 'ESC',
+  mute: 'M',
+  confirm: 'ENTER',
+};
 
 const KEY_HINTS = 'WASD MOVE   ·   E IGNITE   ·   R RETRY   ·   ESC PAUSE';
 const WIN_OVERLAY_DELAY_MS = 650;
@@ -28,7 +34,9 @@ export class GameScene extends Phaser.Scene {
   private levelId = 1;
   private level!: Level;
   private sim!: RoomSim;
-  private keys!: Keys;
+  private keys!: MoveKeys;
+  /** Action keys pressed since the last update. */
+  private readonly pressed = new Set<Action>();
   private hud!: HUD;
   private keeper!: KeeperView;
   private primary!: BeaconView;
@@ -53,6 +61,7 @@ export class GameScene extends Phaser.Scene {
     this.canContinue = false;
     this.relays = [];
     this.prompt = undefined;
+    this.pressed.clear();
   }
 
   create(): void {
@@ -97,7 +106,8 @@ export class GameScene extends Phaser.Scene {
 
     this.pauseOverlay = createPauseOverlay(this, () => this.setPaused(false));
 
-    this.keys = this.input.keyboard!.addKeys({
+    const keyboard = this.input.keyboard!;
+    this.keys = keyboard.addKeys({
       up: 'UP',
       down: 'DOWN',
       left: 'LEFT',
@@ -106,12 +116,14 @@ export class GameScene extends Phaser.Scene {
       a: 'A',
       s: 'S',
       d: 'D',
-      e: 'E',
-      r: 'R',
-      esc: 'ESC',
-      m: 'M',
-      enter: 'ENTER',
-    }) as Keys;
+    }) as MoveKeys;
+    // Actions listen for keydown instead of polling JustDown: Phaser processes a
+    // frame's key events together, so a tap shorter than one frame would be lost.
+    for (const [action, key] of Object.entries(ACTION_KEYS) as [Action, string][]) {
+      keyboard.on(`keydown-${key}`, (event: KeyboardEvent) => {
+        if (!event.repeat) this.pressed.add(action);
+      });
+    }
 
     // Losing focus pauses so nothing can hurt the keeper while the player is away (GDD §10).
     this.game.events.on(Phaser.Core.Events.BLUR, this.autoPause, this);
@@ -126,30 +138,24 @@ export class GameScene extends Phaser.Scene {
 
   override update(time: number, delta: number): void {
     const k = this.keys;
-    const JustDown = Phaser.Input.Keyboard.JustDown;
-    // Read every edge each frame so a press during one state never leaks into the next.
-    const pressed = {
-      e: JustDown(k.e),
-      r: JustDown(k.r),
-      esc: JustDown(k.esc),
-      m: JustDown(k.m),
-      enter: JustDown(k.enter),
-    };
+    // Consume every press each frame so one made in one state never leaks into the next.
+    const pressed = new Set(this.pressed);
+    this.pressed.clear();
     const dt = clampDelta(delta);
 
-    if (pressed.m) this.toggleMute();
-    if (pressed.r) {
+    if (pressed.has('mute')) this.toggleMute();
+    if (pressed.has('restart')) {
       this.scene.restart({ levelId: this.levelId });
       return;
     }
 
     if (this.won) {
       this.portal.update(dt);
-      if (pressed.enter && this.canContinue) this.continueAfterWin();
+      if (pressed.has('confirm') && this.canContinue) this.continueAfterWin();
       return;
     }
 
-    if (pressed.esc) this.setPaused(!this.paused);
+    if (pressed.has('pause')) this.setPaused(!this.paused);
     if (this.paused) return;
 
     const input: FrameInput = {
@@ -157,7 +163,7 @@ export class GameScene extends Phaser.Scene {
       down: k.down.isDown || k.s.isDown,
       left: k.left.isDown || k.a.isDown,
       right: k.right.isDown || k.d.isDown,
-      ignite: pressed.e,
+      ignite: pressed.has('ignite'),
     };
     for (const event of this.sim.step(dt, input)) this.handleEvent(event);
 

@@ -5,8 +5,8 @@ Updated at the end of every gate. Nothing below counts as done without command o
 ## Gates
 | Gate | Meaning | Status |
 |---|---|---|
-| G0 | Game boots locally | Scaffold, typecheck, unit tests and production build pass. **Browser boot not yet verified.** |
-| G1 | Ignition opens a gate (room 1) | Room 1 is cleared by an automated `RoomSim` playthrough under par, and every route fails without the beacon. Scene code builds. **Not yet played in a browser.** |
+| G0 | Game boots locally | **Done.** Typecheck, unit tests and production build pass. Verified in the browser on 2026-10-17: WebGL renderer, title screen, no game console errors, FIT scaling letterboxes correctly. |
+| G1 | Ignition opens a gate (room 1) | **Done.** Automated `RoomSim` playthrough clears room 1 under par. Played in the browser on 2026-10-17 with real key presses: Enter starts, `E` lights the beacon (bloom, `BEACON LIT`, room light, pulses), gate retracts, portal exit, clear screen 0:17.2 with 3 stars. Gate blocks without the beacon. `R`, `Esc`, blur auto-pause, `M` and Enter-to-title all work. |
 | G2 | Caster shadow powers rune (room 2) | Not started |
 | G3 | 6 s echo alone holds the gate (room 3) | Not started |
 | G4 | Scanner shelter and damage rules (room 4) | Not started |
@@ -26,6 +26,9 @@ Updated at the end of every gate. Nothing below counts as done without command o
 - `GameScene`: dark room that lights up on ignition (bloom, embers, room light, radial pulses, `BEACON LIT`), lattice gate that retracts, condition badges, exit portal, HUD (chamber, hearts, clock, mute), pause on `Esc` or window blur, `R` restart, `M` mute, clear overlay with stars.
 - Docs: GDD, trailer shotlist, master prompt, QA checklist, competition rules summary, originality log.
 
+## Bugs found in browser QA
+- **Quick `E` taps were ignored (fixed).** Phaser processes all of a frame's key events together, so a keydown and keyup inside one frame cleared `JustDown` before `update()` saw it. Action keys (`E`, `R`, `Esc`, `M`, `Enter`) now use `keydown-*` events that queue into a set, which `update()` drains once per frame.
+
 ## Decisions made
 - **Engine stays on Phaser 3** (3.90.0, last 3.x) even though Phaser 4 is out, because the GDD and master prompt fix Phaser 3.
 - **Naming:** the code uses `runes` (as in the GDD data contract). The GDD's "glyph" means the same thing.
@@ -37,5 +40,5 @@ Updated at the end of every gate. Nothing below counts as done without command o
 - **Deadline date:** Day 3, 9:30 AM, with the calendar date still to confirm with organizers.
 
 ## Risks and blockers
-- **C: drive has 0 bytes free.** npm's cache and temp files default to C:, so npm commands in this workspace set `npm_config_cache=D:/Adil/.cache/npm` and `TEMP/TMP=D:/Adil/.cache/tmp`. One `vite build` run crashed esbuild, and the next two passed. Freeing space on C: is recommended before long sessions and screen recording.
+- **C: drive has 0 bytes free.** npm's cache and temp files default to C:, so npm commands in this workspace set `npm_config_cache=D:/Adil/.cache/npm` and `TEMP/TMP=D:/Adil/.cache/tmp`. Because C: is full, Windows' pagefile is only 147 MB, so the whole system has very little commit memory (0.28 to 0.53 GB free on 2026-10-17). `vite build` then fails with "memory allocation failed" or "JavaScript heap out of memory". It passed three times earlier when more memory was free. Typecheck and tests (`--maxWorkers=1`) still pass. Freeing space on C: is recommended before long sessions and screen recording.
 - **Stage 4 geometry is tight:** with a 240 px wedge, a caster at the GDD anchor (470,240) covers the rune at x=700 with only 10 px to spare. Retune when room 4 is built.
