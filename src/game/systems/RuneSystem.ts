@@ -25,12 +25,19 @@ export function chargeFraction(state: RuneState): number {
   return state.phase === 'powered' ? 1 : Math.min(1, state.charge / RUNE_CHARGE_SECONDS);
 }
 
-/** Advances one rune by `dt` seconds. Pure: returns a new state. */
-export function stepRune(state: RuneState, mode: RuneMode, covered: boolean, dt: number): RuneState {
+/** Default seconds a `timed` rune stays powered after its shadow leaves. */
+export const TIMED_RUNE_WINDOW = 3;
+
+/**
+ * Advances one rune by `dt` seconds. Pure: returns a new state. `window` is
+ * how long a `timed` rune holds once uncovered.
+ */
+export function stepRune(state: RuneState, mode: RuneMode, covered: boolean, dt: number, window = TIMED_RUNE_WINDOW): RuneState {
   if (state.phase === 'powered') {
     if (mode === 'latching' || covered) return { phase: 'powered', charge: RUNE_CHARGE_SECONDS, uncovered: 0 };
     const uncovered = state.uncovered + dt;
-    if (uncovered > RUNE_RELEASE_GRACE + EPSILON) return initialRuneState();
+    const grace = mode === 'timed' ? window : RUNE_RELEASE_GRACE;
+    if (uncovered > grace + EPSILON) return initialRuneState();
     return { phase: 'powered', charge: RUNE_CHARGE_SECONDS, uncovered };
   }
   if (!covered) return initialRuneState();

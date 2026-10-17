@@ -10,9 +10,10 @@ import {
   type EchoState,
 } from './EchoSystem';
 import { doorConditionMet, nextGateOpen } from './GlyphDoorSystem';
+import { inPrismCone, moverRect, rotorAngle, rotorReach, rotorTouches, rotorWarns } from './HazardGeometry';
 import { circleIntersectsRect, distance, type Circle, type Rect, type Vec2 } from './math';
 import { inputToVelocity, moveCircle, PLAYER_RADIUS, type CollisionWorld, type MoveInput } from './MovementSystem';
-import { initialRuneState, stepRune, type RuneState } from './RuneSystem';
+import { initialRuneState, RUNE_CHARGE_SECONDS, stepRune, TIMED_RUNE_WINDOW, type RuneState } from './RuneSystem';
 import { scannerPosition, scannerTouches, scannerWarns } from './ScannerSystem';
 import { inAnyShadow, pointInConvexPolygon, shadowWedge, type Wedge } from './ShadowSystem';
 
@@ -70,6 +71,12 @@ export type RunState = {
   echoPos: Vec2 | null;
   /** Shadow cast by the echo; it counts for runes exactly like the keeper's. */
   echoShadow: Wedge | null;
+  /** Extra shadows thrown by lit prisms, for the keeper and for the echo. */
+  prismShadows: { wedge: Wedge; echo: boolean }[];
+  /** Each moving pillar's box this frame. */
+  movers: Rect[];
+  /** Each rotating beam's angle and how far it reaches before a block stops it. */
+  rotors: { angle: number; reach: number }[];
   gateOpen: boolean;
   gateEverOpened: boolean;
   /** Room clock in seconds; drives scanners. Unlike the stopwatch it runs from the first frame. */
@@ -104,6 +111,8 @@ export class RoomSim {
   private readonly staticRects: Rect[];
   private readonly brazierCircles: Circle[];
   private readonly history: MovementHistory;
+  /** Runes held on for good because the rune that requires them has powered. */
+  private readonly locked: boolean[];
 
   constructor(level: Level) {
     this.level = level;
@@ -124,6 +133,9 @@ export class RoomSim {
       echo: null,
       echoPos: null,
       echoShadow: null,
+      prismShadows: [],
+      movers: (level.movers ?? []).map((m) => moverRect(m, 0)),
+      rotors: (level.rotors ?? []).map((r) => ({ angle: rotorAngle(r, 0), reach: r.length })),
       gateOpen: false,
       gateEverOpened: false,
       time: 0,
@@ -141,6 +153,7 @@ export class RoomSim {
     };
     this.staticRects = [...level.obstacles];
     this.history = new MovementHistory(level.spawn);
+    this.locked = level.runes.map(() => false);
     this.brazierCircles = [
       { ...level.primaryBeacon, r: PRIMARY_BRAZIER_RADIUS },
       ...level.relayBeacons.map((p) => ({ ...p, r: RELAY_BRAZIER_RADIUS })),
@@ -155,9 +168,11 @@ export class RoomSim {
     ];
   }
 
-  /** Index into braziers() that `E` would light right now, or -1. */
+  /** Index into braziers() that `E` would light right now, or -1. A prism takes light only from a lit primary. */
   ignitableIndex(): number {
-    return findIgnitable(this.state.keeper, this.braziers());
+    const prisms = new Set((this.level.prisms ?? []).map((p) => p.relay + 1));
+    const available = this.braziers().map((b, i) => (prisms.has(i) && !this.state.primaryLit ? { ...b, lit: true } : b));
+    return findIgnitable(this.state.keeper, available);
   }
 
   keeperInDoorway(): boolean {
@@ -181,6 +196,7 @@ export class RoomSim {
     }
     s.time += dt;
     s.invulnerable = Math.max(0, s.invulnerable - dt);
+    if (this.level.movers) s.movers = this.level.movers.map((m) => moverRect(m, s.time));
 
     const velocity = inputToVelocity(input);
     s.moving = velocity.x !== 0 || velocity.y !== 0;
@@ -232,14 +248,35 @@ export class RoomSim {
 
     // Shadows exist only while the primary flame burns (GDD §8.4).
     const light = this.level.primaryBeacon;
-    s.keeperShadow = s.primaryLit ? shadowWedge(light, s.keeper) : null;
-    s.echoShadow = s.primaryLit && s.echoPos ? shadowWedge(light, s.echoPos) : null;
-    const wedges = [s.keeperShadow, s.echoShadow];
+    s.keeperShadow = s.primaryLit ? shadowWedge(light, s.keeper, s.movers) : null;
+    s.echoShadow = s.primaryLit && s.echoPos ? shadowWedge(light, s.echoPos, s.movers) : null;
+    s.prismShadows = [];
+    for (const prism of this.level.prisms ?? []) {
+      if (!s.relaysLit[prism.relay]) continue;
+      const origin = this.level.relayBeacons[prism.relay]!;
+      for (const [caster, echo] of [[s.keeper, false], [s.echoPos, true]] as const) {
+        if (!caster || !inPrismCone(prism, origin, caster)) continue;
+        const wedge = shadowWedge(origin, caster, s.movers);
+        if (wedge) s.prismShadows.push({ wedge, echo });
+      }
+    }
+    const wedges = [s.keeperShadow, s.echoShadow, ...s.prismShadows.map((p) => p.wedge)];
+    const covered = this.level.runes.map((rune) => inAnyShadow(rune.position, wedges));
+    const runeIndex = new Map(this.level.runes.map((r, i) => [r.id, i]));
     this.level.runes.forEach((rune, i) => {
       const before = s.runes[i]!;
-      const after = stepRune(before, rune.mode, inAnyShadow(rune.position, wedges), dt);
+      let shaded = covered[i]!;
+      // Grouped runes charge only while the whole group is in shadow at once.
+      if (rune.group) shaded &&= this.level.runes.every((r, j) => r.group !== rune.group || covered[j]);
+      // A rune that requires another charges only while that one is powered.
+      const required = rune.requires !== undefined ? runeIndex.get(rune.requires) : undefined;
+      if (required !== undefined && !s.runesPowered[required]) shaded = false;
+      const after = this.locked[i]
+        ? { phase: 'powered' as const, charge: RUNE_CHARGE_SECONDS, uncovered: 0 }
+        : stepRune(before, rune.mode, shaded, dt, rune.window ?? TIMED_RUNE_WINDOW);
       s.runes[i] = after;
       const powered = after.phase === 'powered';
+      if (powered && required !== undefined) this.locked[required] = true;
       if (powered !== s.runesPowered[i]) {
         s.runesPowered[i] = powered;
         events.push({ type: powered ? 'runePowered' : 'runeReleased', index: i });
@@ -261,10 +298,25 @@ export class RoomSim {
     // Fire scanners burn the keeper unless their center is in the echo's shadow
     // (never their own) or they were just hit (GDD §8.6).
     s.scanners = this.level.scanners.map((sc) => scannerPosition(sc, s.time));
-    s.sheltered = s.echoShadow !== null && pointInConvexPolygon(s.keeper, s.echoShadow);
+    s.sheltered =
+      (s.echoShadow !== null && pointInConvexPolygon(s.keeper, s.echoShadow)) ||
+      s.prismShadows.some((p) => p.echo && pointInConvexPolygon(s.keeper, p.wedge));
     const protectedNow = s.sheltered || s.invulnerable > 0;
-    s.danger = !protectedNow && this.level.scanners.some((sc) => scannerWarns(sc, s.time, s.keeper));
-    if (!protectedNow && this.level.scanners.some((sc) => scannerTouches(sc, s.time, s.keeper))) {
+    // Rotating beams stop at the first solid block, so the angle behind one is shelter.
+    const rotors = this.level.rotors ?? [];
+    const blockers = rotors.length > 0 ? this.collisionWorld().rects : [];
+    s.rotors = rotors.map((r) => {
+      const angle = rotorAngle(r, s.time);
+      return { angle, reach: rotorReach(r, angle, blockers) };
+    });
+    s.danger =
+      !protectedNow &&
+      (this.level.scanners.some((sc) => scannerWarns(sc, s.time, s.keeper)) ||
+        rotors.some((r) => rotorWarns(r, s.time, s.keeper, blockers)));
+    const burned =
+      this.level.scanners.some((sc) => scannerTouches(sc, s.time, s.keeper)) ||
+      rotors.some((r) => rotorTouches(r, s.time, s.keeper, blockers));
+    if (!protectedNow && burned) {
       s.hearts -= 1;
       s.hits += 1;
       s.danger = false;
@@ -291,7 +343,7 @@ export class RoomSim {
 
   private collisionWorld(): CollisionWorld {
     return {
-      rects: this.state.gateOpen ? this.staticRects : [...this.staticRects, this.level.gate],
+      rects: [...this.staticRects, ...this.state.movers, ...(this.state.gateOpen ? [] : [this.level.gate])],
       circles: this.brazierCircles,
       bounds: CHAMBER_BOUNDS,
     };

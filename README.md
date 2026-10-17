@@ -8,7 +8,7 @@ Light a beacon and your body casts a shadow. Shadows power dark runes that open 
 
 **Play in the browser:** https://adil-infosec.github.io/SIX-SECONDS-OF-SUN/ (desktop, keyboard)
 
-Six handcrafted chambers, about 10 to 15 minutes for a first clear. Progress is saved in your browser. Status: [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
+Six handcrafted chambers, about 10 to 15 minutes for a first clear, then six bonus chambers with new mechanics (twin seals, moving pillars, a rotating fire lamp, sequence runes, a prism relay and an echo-guarded gauntlet). Progress is saved in your browser. Status: [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
 
 ## Controls
 | Key | Action |
@@ -43,7 +43,7 @@ Recording links and steps: [docs/TRAILER_RECORDING_GUIDE.md](docs/TRAILER_RECORD
 ## Project layout
 - `src/game/scenes/`: Phaser scenes (boot, title, chamber list, chamber, ending)
 - `src/game/systems/`: pure, unit-tested game logic (`RoomSim` runs one chamber attempt)
-- `src/game/data/levels.ts`: the six authored chambers
+- `src/game/data/levels.ts`: the six campaign chambers and six bonus chambers
 - `src/game/art/`: views drawn in code (beacons, shadows, runes, echo, scanners)
 - `src/game/audio/`: the WebAudio synthesizer for all sound
 - `src/dev/`: browser QA helpers, loaded only by `npm run dev`

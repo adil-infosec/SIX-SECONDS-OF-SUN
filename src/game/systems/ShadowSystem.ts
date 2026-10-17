@@ -1,4 +1,5 @@
-import type { Vec2 } from './math';
+import { rayReach } from './HazardGeometry';
+import type { Rect, Vec2 } from './math';
 
 /** GDD §8.4 stylized projected shadow wedge. */
 export const SHADOW_NEAR_HALF_WIDTH = 11;
@@ -13,9 +14,10 @@ export type Wedge = readonly [Vec2, Vec2, Vec2, Vec2];
 /**
  * Shadow cast away from `light` by a caster at `caster`, or null when the
  * caster is too close to the flame (this also guards zero-length input).
- * Walls do not alter the wedge in this build.
+ * Static walls do not alter the wedge; `blockers` (moving pillars) cut it
+ * short where its center line runs into them.
  */
-export function shadowWedge(light: Vec2, caster: Vec2): Wedge | null {
+export function shadowWedge(light: Vec2, caster: Vec2, blockers: readonly Rect[] = []): Wedge | null {
   const dx = caster.x - light.x;
   const dy = caster.y - light.y;
   const d = Math.hypot(dx, dy);
@@ -24,14 +26,35 @@ export function shadowWedge(light: Vec2, caster: Vec2): Wedge | null {
   const uy = dy / d;
   const nx = -uy;
   const ny = ux;
-  const fx = caster.x + ux * SHADOW_LENGTH;
-  const fy = caster.y + uy * SHADOW_LENGTH;
+  const length = blockers.length > 0 ? cutLength(caster, ux, uy, nx, ny, blockers) : SHADOW_LENGTH;
+  if (length <= 0) return null;
+  const far = SHADOW_NEAR_HALF_WIDTH + (SHADOW_FAR_HALF_WIDTH - SHADOW_NEAR_HALF_WIDTH) * (length / SHADOW_LENGTH);
+  const fx = caster.x + ux * length;
+  const fy = caster.y + uy * length;
   return [
     { x: caster.x + nx * SHADOW_NEAR_HALF_WIDTH, y: caster.y + ny * SHADOW_NEAR_HALF_WIDTH },
-    { x: fx + nx * SHADOW_FAR_HALF_WIDTH, y: fy + ny * SHADOW_FAR_HALF_WIDTH },
-    { x: fx - nx * SHADOW_FAR_HALF_WIDTH, y: fy - ny * SHADOW_FAR_HALF_WIDTH },
+    { x: fx + nx * far, y: fy + ny * far },
+    { x: fx - nx * far, y: fy - ny * far },
     { x: caster.x - nx * SHADOW_NEAR_HALF_WIDTH, y: caster.y - ny * SHADOW_NEAR_HALF_WIDTH },
   ];
+}
+
+/**
+ * How far the wedge runs before a blocker: the nearest hit along its center
+ * line or either edge, so a pillar touching any part of the wedge ends it.
+ */
+function cutLength(caster: Vec2, ux: number, uy: number, nx: number, ny: number, blockers: readonly Rect[]): number {
+  let length = rayReach(caster, { x: ux, y: uy }, blockers, SHADOW_LENGTH);
+  const spread = SHADOW_FAR_HALF_WIDTH - SHADOW_NEAR_HALF_WIDTH;
+  for (const side of [1, -1]) {
+    const start = { x: caster.x + side * nx * SHADOW_NEAR_HALF_WIDTH, y: caster.y + side * ny * SHADOW_NEAR_HALF_WIDTH };
+    const ex = ux * SHADOW_LENGTH + side * nx * spread;
+    const ey = uy * SHADOW_LENGTH + side * ny * spread;
+    const edge = Math.hypot(ex, ey);
+    const hit = rayReach(start, { x: ex / edge, y: ey / edge }, blockers, edge);
+    length = Math.min(length, (hit / edge) * SHADOW_LENGTH);
+  }
+  return length;
 }
 
 const EPSILON = 1e-9;

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CSS_COLORS, DEPTH, FONT_UI, PALETTE } from '../config';
+import { CHAMBER_BOUNDS, CSS_COLORS, DEPTH, FONT_UI, PALETTE } from '../config';
 import type { Vec2 } from '../systems/math';
 import type { RuneMode } from '../data/levelTypes';
 import type { RunePhase } from '../systems/RuneSystem';
@@ -97,8 +97,10 @@ export class RuneView {
     this.scene.tweens.add({ targets: this.glow, alpha: 0.45, scale: 0.6, duration: 450, ease: 'Cubic.easeOut' });
     this.sparks.explode(SPARKS);
 
+    // Above the rune, unless that would leave the chamber (a rune by the top wall shows it below).
+    const above = this.pos.y - 44 >= CHAMBER_BOUNDS.y + 16;
     const label = this.scene.add
-      .text(this.pos.x, this.pos.y - 44, 'SHADOW LOCK', {
+      .text(this.pos.x, this.pos.y + (above ? -44 : 44), 'SHADOW LOCK', {
         fontFamily: FONT_UI,
         fontSize: '15px',
         fontStyle: 'bold',
@@ -108,10 +110,12 @@ export class RuneView {
       .setLetterSpacing(3)
       .setDepth(DEPTH.hint)
       .setScale(0.8);
+    const half = label.width / 2 + 8;
+    label.setX(Math.min(Math.max(label.x, CHAMBER_BOUNDS.x + half), CHAMBER_BOUNDS.x + CHAMBER_BOUNDS.w - half));
     this.scene.tweens.add({ targets: label, scale: 1, duration: 180, ease: 'Back.easeOut' });
     this.scene.tweens.add({
       targets: label,
-      y: label.y - 18,
+      y: label.y + (above ? -18 : 18),
       alpha: 0,
       delay: 700,
       duration: 700,

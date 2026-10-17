@@ -11,8 +11,10 @@ export const CHAMBER_BOUNDS = {
   h: GAME_HEIGHT - WALL_THICKNESS * 2,
 } as const;
 
-/** Total authored chambers in the campaign (GDD §9). */
-export const TOTAL_CHAMBERS = 6;
+/** The GDD §9 campaign; clearing its last chamber plays the sunrise. */
+export const CAMPAIGN_CHAMBERS = 6;
+/** Every chamber, including the bonus chambers unlocked after the campaign. */
+export const TOTAL_CHAMBERS = 12;
 
 /** Render order, back to front. */
 export const DEPTH = {

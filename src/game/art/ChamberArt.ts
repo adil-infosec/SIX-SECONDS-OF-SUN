@@ -87,8 +87,24 @@ const THEMES: Record<'fire' | 'shadow' | 'time' | 'sun', Theme> = {
   },
 };
 
-/** GDD lessons: 1 fire, 2 shadow, 3 time (echo), 4 Furnace Hour, 5 Ashes and Angles, 6 all three. */
-const ROOM_THEME: Record<number, keyof typeof THEMES> = { 1: 'fire', 2: 'shadow', 3: 'time', 4: 'fire', 5: 'shadow', 6: 'sun' };
+/**
+ * GDD lessons: 1 fire, 2 shadow, 3 time (echo), 4 Furnace Hour, 5 Ashes and
+ * Angles, 6 all three. Bonus chambers 7-12 follow the same rhythm.
+ */
+const ROOM_THEME: Record<number, keyof typeof THEMES> = {
+  1: 'fire',
+  2: 'shadow',
+  3: 'time',
+  4: 'fire',
+  5: 'shadow',
+  6: 'sun',
+  7: 'fire',
+  8: 'shadow',
+  9: 'time',
+  10: 'fire',
+  11: 'shadow',
+  12: 'sun',
+};
 
 export function themeFor(levelId: number): Theme {
   return THEMES[ROOM_THEME[levelId] ?? 'time'];
@@ -346,6 +362,25 @@ function block(ctx: CanvasRenderingContext2D, o: Rect, t: Theme, rand: () => num
     ctx.fillStyle = withAlpha(t.accent, 0.55);
     ctx.fillRect(cx - P, cy - P, P * 2, P * 2);
   }
+}
+
+/**
+ * A stone block of `w` x `h` in the room's theme as its own texture, with a
+ * drop shadow, for blocks that move. The block sits 2 px in from the top-left.
+ */
+export function blockTexture(scene: Phaser.Scene, levelId: number, w: number, h: number): string {
+  const key = `tex-block-${levelId}-${w}x${h}`;
+  if (!scene.textures.exists(key)) {
+    const tex = scene.textures.createCanvas(key, w + 10, h + 12);
+    if (tex) {
+      const ctx = tex.getContext();
+      ctx.fillStyle = 'rgba(4,6,14,0.45)';
+      ctx.fillRect(2 + P * 2, 2 + P * 3, w, h);
+      block(ctx, { x: 2, y: 2, w, h }, themeFor(levelId), seeded(levelId * 31 + w * 7 + h));
+      tex.refresh();
+    }
+  }
+  return key;
 }
 
 /** Faint carved observatory clock on the floor (decor only). */

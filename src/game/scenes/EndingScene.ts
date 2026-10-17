@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CSS_COLORS, FONT_MONO, FONT_UI, GAME_HEIGHT, GAME_WIDTH, PALETTE, SCENE_KEYS, TOTAL_CHAMBERS } from '../config';
+import { CAMPAIGN_CHAMBERS, CSS_COLORS, FONT_MONO, FONT_UI, GAME_HEIGHT, GAME_WIDTH, PALETTE, SCENE_KEYS } from '../config';
 import { glowKey } from '../art/ProceduralTextures';
 import { audio } from '../audio/AudioEngine';
 import { getProgress } from '../progressState';
@@ -100,7 +100,8 @@ export class EndingScene extends Phaser.Scene {
   /** First press skips to the final frame; the next one leaves for the chamber list. */
   private advance(): void {
     if (!this.finished) this.finish();
-    else this.scene.start(SCENE_KEYS.levelSelect, { focus: TOTAL_CHAMBERS });
+    // The campaign is done: the chamber list opens on the first bonus chamber.
+    else this.scene.start(SCENE_KEYS.levelSelect, { focus: CAMPAIGN_CHAMBERS + 1 });
   }
 
   private finish(): void {
@@ -189,8 +190,10 @@ export class EndingScene extends Phaser.Scene {
       );
     }
     const progress = getProgress();
-    const cleared = Object.keys(progress.best).length;
-    const stars = Object.values(progress.best).reduce((sum, r) => sum + r.bestStars, 0);
+    // The sunrise closes the campaign, so it counts the campaign's chambers only.
+    const campaign = Object.entries(progress.best).filter(([id]) => Number(id) <= CAMPAIGN_CHAMBERS);
+    const cleared = campaign.length;
+    const stars = campaign.reduce((sum, [, r]) => sum + r.bestStars, 0);
     this.finale = [
       this.add
         .text(CX, 84, 'SIX SECONDS OF SUN', { fontFamily: FONT_UI, fontSize: '40px', fontStyle: 'bold', color: CSS_COLORS.text })
@@ -201,7 +204,7 @@ export class EndingScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setLetterSpacing(5),
       this.add
-        .text(CX, 456, `${cleared} / ${TOTAL_CHAMBERS} CHAMBERS   ·   ★ ${stars} / ${TOTAL_CHAMBERS * 3}`, {
+        .text(CX, 456, `${cleared} / ${CAMPAIGN_CHAMBERS} CHAMBERS   ·   ★ ${stars} / ${CAMPAIGN_CHAMBERS * 3}`, {
           fontFamily: FONT_MONO,
           fontSize: '15px',
           color: CSS_COLORS.muted,

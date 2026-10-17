@@ -49,12 +49,12 @@ describe('loadProgress', () => {
         1: { bestTime: 20.5, bestStars: 3 },
         2: { bestTime: -1, bestStars: 3 },
         3: { bestTime: 40, bestStars: 7 },
-        9: { bestTime: 10, bestStars: 1 },
+        13: { bestTime: 10, bestStars: 1 },
         x: { bestTime: 10, bestStars: 1 },
       },
     });
     expect(loadProgress(memoryStore(raw))).toEqual({
-      unlocked: 6,
+      unlocked: 12,
       muted: true,
       reducedShake: false,
       best: { 1: { bestTime: 20.5, bestStars: 3 } },
@@ -77,7 +77,9 @@ describe('loadProgress', () => {
 describe('recordClear', () => {
   it('unlocks the next chamber, capped at the last one', () => {
     expect(recordClear(defaultProgress(), 1, 30, 2).progress.unlocked).toBe(2);
-    expect(recordClear({ ...defaultProgress(), unlocked: 6 }, 6, 100, 1).progress.unlocked).toBe(6);
+    // Clearing the campaign finale opens the first bonus chamber.
+    expect(recordClear({ ...defaultProgress(), unlocked: 6 }, 6, 100, 1).progress.unlocked).toBe(7);
+    expect(recordClear({ ...defaultProgress(), unlocked: 12 }, 12, 100, 1).progress.unlocked).toBe(12);
   });
 
   it('never lowers unlocked when replaying an early chamber', () => {

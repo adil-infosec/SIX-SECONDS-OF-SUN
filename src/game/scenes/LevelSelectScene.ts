@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CSS_COLORS, FONT_MONO, FONT_UI, GAME_WIDTH, PALETTE, SCENE_KEYS, TOTAL_CHAMBERS } from '../config';
+import { CAMPAIGN_CHAMBERS, CSS_COLORS, FONT_MONO, FONT_UI, GAME_WIDTH, PALETTE, SCENE_KEYS, TOTAL_CHAMBERS } from '../config';
 import { glowKey } from '../art/ProceduralTextures';
 import { audio } from '../audio/AudioEngine';
 import { CAPTURE } from '../captureMode';
@@ -18,6 +18,10 @@ const CARD_H = 150;
 const GAP = 24;
 const GRID_X = (GAME_WIDTH - (COLS * CARD_W + (COLS - 1) * GAP)) / 2;
 const GRID_Y = 128;
+/** One page per six chambers: the campaign, then the bonus chambers. */
+const PER_PAGE = 6;
+const PAGES = Math.ceil(TOTAL_CHAMBERS / PER_PAGE);
+const PAGE_NAMES = ['CAMPAIGN', 'BONUS'];
 
 /** Highest playable chamber; capture mode opens all of them without saving. */
 function unlockedUpTo(): number {
@@ -25,6 +29,11 @@ function unlockedUpTo(): number {
 }
 
 type CardView = {
+  page: number;
+  /** Carries the rise-in and the page's visibility; `root` inside it scales when selected. */
+  rise: Phaser.GameObjects.Container;
+  hit: Phaser.GameObjects.Zone;
+  restY: number;
   root: Phaser.GameObjects.Container;
   frame: Phaser.GameObjects.Graphics;
   glow: Phaser.GameObjects.Image;
@@ -33,11 +42,16 @@ type CardView = {
   cleared: boolean;
 };
 
-/** Chamber list: six glass cards with best stars and time; locked chambers are dimmed. */
+/**
+ * Chamber list: glass cards with best stars and time, six to a page (the
+ * campaign, then the bonus chambers); locked chambers are dimmed.
+ */
 export class LevelSelectScene extends Phaser.Scene {
   private selected = 0;
   private focus?: number;
+  private page = 0;
   private cards: CardView[] = [];
+  private tabs: { frame: Phaser.GameObjects.Graphics; label: Phaser.GameObjects.Text; x: number; w: number }[] = [];
   private settings!: Phaser.GameObjects.Text;
 
   constructor() {
@@ -47,21 +61,22 @@ export class LevelSelectScene extends Phaser.Scene {
   init(data: LevelSelectData): void {
     this.focus = data.focus;
     this.cards = [];
+    this.tabs = [];
   }
 
   create(): void {
     addMenuBackdrop(this);
     const progress = getProgress();
-    const cleared = Object.keys(progress.best).length;
-    const stars = Object.values(progress.best).reduce((sum, r) => sum + r.bestStars, 0);
     // Capture mode starts from chamber 1 so recording takes go in order.
     this.selected = Math.min(TOTAL_CHAMBERS, Math.max(1, this.focus ?? (CAPTURE ? 1 : unlockedUpTo()))) - 1;
+    this.page = Math.floor(this.selected / PER_PAGE);
 
-    this.drawHeader(cleared, stars);
+    this.drawHeader();
     LEVELS.forEach((level, i) => this.drawCard(i, level.id, level.title, level.id <= unlockedUpTo(), progress.best[level.id]));
+    this.showPage(this.page);
 
     this.add
-      .text(GAME_WIDTH / 2, 482, 'ARROWS / WASD  SELECT     ENTER  PLAY     ESC  TITLE', {
+      .text(GAME_WIDTH / 2, 482, 'ARROWS / WASD  SELECT     Q / E  PAGE     ENTER  PLAY     ESC  TITLE', {
         fontFamily: FONT_UI,
         fontSize: '13px',
         color: CSS_COLORS.text,
@@ -76,20 +91,32 @@ export class LevelSelectScene extends Phaser.Scene {
     this.highlight(true);
 
     const kb = this.input.keyboard!;
-    const move = (d: number) => {
-      const next = Phaser.Math.Clamp(this.selected + d, 0, LEVELS.length - 1);
-      if (next !== this.selected) audio.sfx('uiMove');
-      this.selected = next;
-      this.highlight();
+    // Left and right run on across the page edge into the next page.
+    const move = (dx: number, dy: number) => {
+      const local = this.selected % PER_PAGE;
+      let page = Math.floor(this.selected / PER_PAGE);
+      let col = (local % COLS) + dx;
+      const row = Phaser.Math.Clamp(Math.floor(local / COLS) + dy, 0, PER_PAGE / COLS - 1);
+      if (col >= COLS) [page, col] = page < PAGES - 1 ? [page + 1, 0] : [page, COLS - 1];
+      if (col < 0) [page, col] = page > 0 ? [page - 1, COLS - 1] : [page, 0];
+      this.select(Math.min(LEVELS.length - 1, page * PER_PAGE + row * COLS + col));
     };
-    kb.on('keydown-LEFT', () => move(-1));
-    kb.on('keydown-A', () => move(-1));
-    kb.on('keydown-RIGHT', () => move(1));
-    kb.on('keydown-D', () => move(1));
-    kb.on('keydown-UP', () => move(-COLS));
-    kb.on('keydown-W', () => move(-COLS));
-    kb.on('keydown-DOWN', () => move(COLS));
-    kb.on('keydown-S', () => move(COLS));
+    const flip = (d: number) => {
+      const page = Phaser.Math.Clamp(this.page + d, 0, PAGES - 1);
+      this.select(Math.min(LEVELS.length - 1, page * PER_PAGE + (this.selected % PER_PAGE)));
+    };
+    kb.on('keydown-LEFT', () => move(-1, 0));
+    kb.on('keydown-A', () => move(-1, 0));
+    kb.on('keydown-RIGHT', () => move(1, 0));
+    kb.on('keydown-D', () => move(1, 0));
+    kb.on('keydown-UP', () => move(0, -1));
+    kb.on('keydown-W', () => move(0, -1));
+    kb.on('keydown-DOWN', () => move(0, 1));
+    kb.on('keydown-S', () => move(0, 1));
+    kb.on('keydown-Q', () => flip(-1));
+    kb.on('keydown-E', () => flip(1));
+    kb.on('keydown-PAGE_UP', () => flip(-1));
+    kb.on('keydown-PAGE_DOWN', () => flip(1));
     // Ignore key repeat so a held Enter from the previous screen cannot start a chamber.
     kb.on('keydown-ENTER', (e: KeyboardEvent) => !e.repeat && this.play(this.selected));
     kb.on('keydown-ESC', (e: KeyboardEvent) => !e.repeat && this.scene.start(SCENE_KEYS.title));
@@ -104,6 +131,49 @@ export class LevelSelectScene extends Phaser.Scene {
       this.refreshSettings();
     });
     this.cameras.main.fadeIn(200, 5, 8, 15);
+  }
+
+  /** Moves the selection, flipping the page when it crosses one. */
+  private select(index: number): void {
+    if (index === this.selected) return;
+    audio.sfx('uiMove');
+    this.selected = index;
+    const page = Math.floor(index / PER_PAGE);
+    if (page !== this.page) this.showPage(page);
+    this.highlight();
+  }
+
+  /** Shows one page of cards (they rise in again) and lights its tab. */
+  private showPage(page: number): void {
+    this.page = page;
+    let order = 0;
+    for (const card of this.cards) {
+      const on = card.page === page;
+      card.rise.setVisible(on);
+      if (on) card.hit.setInteractive({ useHandCursor: card.unlocked });
+      else card.hit.disableInteractive();
+      if (!on) continue;
+      this.tweens.killTweensOf(card.rise);
+      card.rise.setY(card.restY + 14).setAlpha(0);
+      this.tweens.add({
+        targets: card.rise,
+        y: card.restY,
+        alpha: card.unlocked ? 1 : 0.5,
+        delay: 40 + order++ * 55,
+        duration: 320,
+        ease: 'Cubic.easeOut',
+      });
+    }
+    this.tabs.forEach((tab, i) => {
+      const active = i === page;
+      tab.frame.clear();
+      drawGlassPanel(tab.frame, tab.x - tab.w / 2, 84, tab.w, 24, 12, {
+        border: active ? PALETTE.amber : PALETTE.ice,
+        borderAlpha: active ? 0.9 : 0.25,
+        fillAlpha: active ? 0.8 : 0.6,
+      });
+      tab.label.setColor(active ? CSS_COLORS.gold : CSS_COLORS.muted);
+    });
   }
 
   private play(index: number): void {
@@ -122,7 +192,7 @@ export class LevelSelectScene extends Phaser.Scene {
     this.settings.setText(`M  SOUND: ${p.muted ? 'OFF' : 'ON'}      V  SCREEN SHAKE: ${p.reducedShake ? 'OFF' : 'ON'}`);
   }
 
-  private drawHeader(cleared: number, stars: number): void {
+  private drawHeader(): void {
     const cx = GAME_WIDTH / 2;
     this.add
       .text(cx, 30, 'SOLAR OBSERVATORY  ·  LIGHT ENGINE', { fontFamily: FONT_MONO, fontSize: '11px', color: CSS_COLORS.cyan })
@@ -135,18 +205,31 @@ export class LevelSelectScene extends Phaser.Scene {
       .setLetterSpacing(10)
       .setShadow(0, 0, CSS_COLORS.amber, 18, false, true);
 
-    const summary = this.add
-      .text(cx, 96, `${cleared} / ${TOTAL_CHAMBERS} CLEARED      ★ ${stars} / ${TOTAL_CHAMBERS * 3}`, {
-        fontFamily: FONT_MONO,
-        fontSize: '13px',
-        color: CSS_COLORS.text,
-      })
-      .setOrigin(0.5)
-      .setLetterSpacing(1);
-    const chip = this.add.graphics();
-    const w = summary.width + 40;
-    drawGlassPanel(chip, cx - w / 2, 84, w, 24, 12, { border: PALETTE.ice, borderAlpha: 0.3, fillAlpha: 0.7 });
-    summary.setDepth(1);
+    // One tab per page, with that page's progress; click a tab to open it.
+    const best = getProgress().best;
+    const w = 236;
+    for (let page = 0; page < PAGES; page++) {
+      const ids = LEVELS.filter((_l, i) => Math.floor(i / PER_PAGE) === page).map((l) => l.id);
+      const cleared = ids.filter((id) => best[id]).length;
+      const stars = ids.reduce((sum, id) => sum + (best[id]?.bestStars ?? 0), 0);
+      const locked = page > 0 && unlockedUpTo() <= CAMPAIGN_CHAMBERS;
+      const x = cx + (page - (PAGES - 1) / 2) * (w + 14);
+      const frame = this.add.graphics();
+      const progress = locked ? 'LOCKED' : `${cleared}/${ids.length}   ★ ${stars}/${ids.length * 3}`;
+      const label = this.add
+        .text(x, 96, `${PAGE_NAMES[page] ?? 'PAGE'}   ${progress}`, {
+          fontFamily: FONT_MONO,
+          fontSize: '12px',
+          fontStyle: 'bold',
+          color: CSS_COLORS.muted,
+        })
+        .setOrigin(0.5)
+        .setLetterSpacing(1)
+        .setDepth(1);
+      const hit = this.add.zone(x, 96, w, 24).setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => this.select(Math.min(LEVELS.length - 1, page * PER_PAGE + (this.selected % PER_PAGE))));
+      this.tabs.push({ frame, label, x, w });
+    }
   }
 
   /** Selected card: amber rim and halo, a soft glow behind, a small lift. */
@@ -187,8 +270,9 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   private drawCard(index: number, id: number, title: string, unlocked: boolean, record: ChamberRecord | undefined): void {
-    const x = GRID_X + (index % COLS) * (CARD_W + GAP);
-    const y = GRID_Y + Math.floor(index / COLS) * (CARD_H + GAP);
+    const local = index % PER_PAGE;
+    const x = GRID_X + (local % COLS) * (CARD_W + GAP);
+    const y = GRID_Y + Math.floor(local / COLS) * (CARD_H + GAP);
     const left = -CARD_W / 2;
     const top = -CARD_H / 2;
     const cleared = !!record;
@@ -224,7 +308,7 @@ export class LevelSelectScene extends Phaser.Scene {
     rule.lineBetween(left + 22, top + CARD_H - 50, left + CARD_W - 16, top + CARD_H - 50);
     parts.push(rule);
 
-    parts.push(...this.starBadges(left + 34, top + CARD_H - 26, record, index));
+    parts.push(...this.starBadges(left + 34, top + CARD_H - 26, record, local));
 
     const clock = this.add.graphics();
     const time = this.add
@@ -250,18 +334,13 @@ export class LevelSelectScene extends Phaser.Scene {
     const root = this.add.container(0, 0, parts);
     const cy = y + CARD_H / 2;
     const rise = this.add.container(x + CARD_W / 2, cy + 14, [root]).setAlpha(0);
-    const card: CardView = { root, frame, glow, number, unlocked, cleared };
+    const hit = this.add.zone(x, y, CARD_W, CARD_H).setOrigin(0);
+    hit.on('pointerover', () => this.select(index));
+    hit.on('pointerdown', () => this.play(index));
+    const page = Math.floor(index / PER_PAGE);
+    const card: CardView = { page, rise, hit, restY: cy, root, frame, glow, number, unlocked, cleared };
     this.cards.push(card);
     this.drawFrame(card, false);
-    this.tweens.add({ targets: rise, y: cy, alpha: unlocked ? 1 : 0.5, delay: 40 + index * 55, duration: 320, ease: 'Cubic.easeOut' });
-
-    const hit = this.add.zone(x, y, CARD_W, CARD_H).setOrigin(0).setInteractive({ useHandCursor: unlocked });
-    hit.on('pointerover', () => {
-      if (index !== this.selected) audio.sfx('uiMove');
-      this.selected = index;
-      this.highlight();
-    });
-    hit.on('pointerdown', () => this.play(index));
   }
 
   /** Top-right chip: CLEARED, NEW or a padlock with LOCKED. */

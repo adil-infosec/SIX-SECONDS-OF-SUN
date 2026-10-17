@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CSS_COLORS, DEPTH, FONT_MONO, FONT_UI, GAME_HEIGHT, GAME_WIDTH, PALETTE, TOTAL_CHAMBERS } from '../config';
+import { CAMPAIGN_CHAMBERS, CSS_COLORS, DEPTH, FONT_MONO, FONT_UI, GAME_HEIGHT, GAME_WIDTH, PALETTE, TOTAL_CHAMBERS } from '../config';
 import { glowKey } from '../art/ProceduralTextures';
 import type { RunState } from '../systems/RoomSim';
 import { formatClock } from '../systems/Scoring';
@@ -45,7 +45,7 @@ export class HUD {
   constructor(scene: Phaser.Scene, chamber: number, title: string, keyHints: string, runes = 0) {
     this.scene = scene;
     const label = scene.add
-      .text(52, TOP_Y, `CHAMBER ${pad(chamber)} / ${pad(TOTAL_CHAMBERS)}`, {
+      .text(52, TOP_Y, chamberLabel(chamber), {
         fontFamily: FONT_UI,
         fontSize: '12px',
         color: CSS_COLORS.muted,
@@ -209,6 +209,12 @@ export class HUD {
     }
     pill.met = met;
   }
+}
+
+/** `CHAMBER 03 / 06` in the campaign, `BONUS 02 / 06` after it. */
+function chamberLabel(chamber: number): string {
+  if (chamber <= CAMPAIGN_CHAMBERS) return `CHAMBER ${pad(chamber)} / ${pad(CAMPAIGN_CHAMBERS)}`;
+  return `BONUS ${pad(chamber - CAMPAIGN_CHAMBERS)} / ${pad(TOTAL_CHAMBERS - CAMPAIGN_CHAMBERS)}`;
 }
 
 function pad(n: number): string {

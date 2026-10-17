@@ -2,10 +2,46 @@ import type { Rect, Vec2 } from '../systems/math';
 
 export type { Rect, Vec2 };
 
-export type RuneMode = 'latching' | 'continuous';
+/**
+ * `latching` stays powered once charged; `continuous` needs its shadow kept
+ * on it; `timed` stays powered for `window` seconds after its shadow leaves.
+ */
+export type RuneMode = 'latching' | 'continuous' | 'timed';
 
 /** The GDD also calls these "glyphs"; the code uses "rune" throughout. */
-export type Rune = { id: string; position: Vec2; mode: RuneMode };
+export type Rune = {
+  id: string;
+  position: Vec2;
+  mode: RuneMode;
+  /** Runes sharing a group charge only while every rune in the group is shadowed at once. */
+  group?: string;
+  /** Id of a rune that must be powered for this one to charge; powering this one locks that rune on. */
+  requires?: string;
+  /** Seconds a `timed` rune stays powered after its shadow leaves (default 3). */
+  window?: number;
+};
+
+/**
+ * A stone pillar that slides back and forth along `axis` by up to `range`
+ * px from `rect`, once per `period` seconds. It is solid, and it cuts any
+ * shadow that runs into it.
+ */
+export type Mover = { rect: Rect; axis: 'x' | 'y'; range: number; period: number; phase: number };
+
+/**
+ * A rotating fire beam: it turns around `center` once per `period` seconds
+ * and reaches `length` px, stopping at the first solid block in its way, so
+ * the angle behind a block is shelter.
+ */
+export type Rotor = { center: Vec2; length: number; period: number; phase: number; clockwise: boolean };
+
+/**
+ * A prism relay (by index into `relayBeacons`): it takes light from the lit
+ * primary and throws a cone toward `angle` (radians, 0 = right, y down) of
+ * `spread` radians and `range` px. Anything in the cone casts a second shadow
+ * away from the prism.
+ */
+export type Prism = { relay: number; angle: number; spread: number; range: number };
 
 /**
  * GDD §8.6 fire scanner. A `vertical` band (parallel to y) sweeps along x
@@ -59,4 +95,8 @@ export type Level = {
   /** The last chamber: its beacon is the eclipse engine and clearing it plays the sunrise. */
   finale: boolean;
   hints: Hint[];
+  /** Bonus-chamber mechanics; rooms 1-6 use none of them. */
+  movers?: Mover[];
+  rotors?: Rotor[];
+  prisms?: Prism[];
 };

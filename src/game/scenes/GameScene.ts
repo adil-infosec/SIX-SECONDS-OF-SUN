@@ -6,6 +6,7 @@ import { BeaconView } from '../art/BeaconView';
 import { audio, type SfxName } from '../audio/AudioEngine';
 import { CheckpointView } from '../art/CheckpointView';
 import { EclipseEngineView } from '../art/EclipseEngineView';
+import { drawRuneLinks, MoverView, PrismView, RotorView, RuneTimerView } from '../art/BonusViews';
 import { EchoView } from '../art/EchoView';
 import { createInteriorMask, drawChamber } from '../art/ChamberArt';
 import { GateView, type GateCondition } from '../art/GateView';
@@ -19,7 +20,7 @@ import { getProgress, setPreference, setProgress } from '../progressState';
 import { echoAlpha } from '../systems/EchoSystem';
 import { recordClear } from '../systems/Progress';
 import { RoomSim, STARTING_HEARTS, type FrameInput, type SimEvent } from '../systems/RoomSim';
-import { chargeFraction } from '../systems/RuneSystem';
+import { chargeFraction, TIMED_RUNE_WINDOW } from '../systems/RuneSystem';
 import { scannerProximity } from '../systems/ScannerSystem';
 import { computeStars } from '../systems/Scoring';
 import { clampDelta } from '../systems/time';
@@ -86,6 +87,12 @@ export class GameScene extends Phaser.Scene {
   private echo: EchoView | null = null;
   private memory: MemoryMeter | null = null;
   private scanners: ScannerView[] = [];
+  private movers: MoverView[] = [];
+  private rotors: RotorView[] = [];
+  /** Prism views by relay index (null for plain relays). */
+  private prisms: (PrismView | null)[] = [];
+  private prismShadows: { keeper: ShadowView[]; echo: ShadowView[] } = { keeper: [], echo: [] };
+  private runeTimers: (RuneTimerView | null)[] = [];
   /** The echo's shadow drawn again over scanner light, so shelter visibly blocks the fire. */
   private bandShade: ShadowView | null = null;
   private checkpoints: CheckpointView[] = [];
@@ -142,6 +149,8 @@ export class GameScene extends Phaser.Scene {
       .setDepth(DEPTH.darkness);
 
     this.runes = this.level.runes.map((r) => new RuneView(this, r.position, r.mode));
+    drawRuneLinks(this, this.level);
+    this.runeTimers = this.level.runes.map((r) => (r.mode === 'timed' ? new RuneTimerView(this, r.position) : null));
     this.keeperShadow = new ShadowView(this, mask);
     // The echo's shadow has a cyan edge so players can tell whose shade is whose.
     this.echoShadow = new ShadowView(this, mask, PALETTE.night, PALETTE.cyan);
@@ -156,9 +165,20 @@ export class GameScene extends Phaser.Scene {
         farAlpha: 0.75,
       });
     }
+    this.movers = (this.level.movers ?? []).map((m) => new MoverView(this, m, this.level.id));
+    this.rotors = (this.level.rotors ?? []).map((r) => new RotorView(this, r, mask));
+    const prisms = this.level.prisms ?? [];
+    this.prismShadows = {
+      keeper: prisms.map(() => new ShadowView(this, mask)),
+      echo: prisms.map(() => new ShadowView(this, mask, PALETTE.night, PALETTE.cyan)),
+    };
     this.checkpoints = this.level.checkpoints.map((p) => new CheckpointView(this, p));
     this.primary = new BeaconView(this, this.level.primaryBeacon, true, mask);
     this.relays = this.level.relayBeacons.map((p) => new BeaconView(this, p, false, mask));
+    this.prisms = this.level.relayBeacons.map((p, i) => {
+      const prism = prisms.find((pr) => pr.relay === i);
+      return prism ? new PrismView(this, prism, p, this.level.primaryBeacon, mask) : null;
+    });
     this.gate = new GateView(this, this.level.gate);
     this.portal = new PortalView(this, this.level.goal);
     // A restart from the pause menu must not leave the walk animations frozen.
@@ -267,11 +287,20 @@ export class GameScene extends Phaser.Scene {
     this.keeperShadow.update(s.keeperShadow);
     this.echoShadow.update(s.echoShadow);
     this.bandShade?.update(s.echoShadow);
+    this.movers.forEach((view, i) => view.update(s.movers[i]!));
+    this.rotors.forEach((view, i) => view.update(s.rotors[i]!.angle, s.rotors[i]!.reach, s.time, time));
+    const keeperPrism = s.prismShadows.filter((p) => !p.echo);
+    const echoPrism = s.prismShadows.filter((p) => p.echo);
+    this.prismShadows.keeper.forEach((view, i) => view.update(keeperPrism[i]?.wedge ?? null));
+    this.prismShadows.echo.forEach((view, i) => view.update(echoPrism[i]?.wedge ?? null));
     if (this.echo && s.echo && s.echoPos) this.echo.update(s.echoPos, echoAlpha(s.echo.t), s.echo.loops);
     this.memory?.update(s.memory, s.echoReady, s.echo ? s.echo.t : null);
     this.runes.forEach((view, i) => {
       const rune = s.runes[i]!;
       view.setCharge(chargeFraction(rune), rune.phase);
+      // A timed rune counts its window down once its shadow leaves.
+      const window = this.level.runes[i]!.window ?? TIMED_RUNE_WINDOW;
+      this.runeTimers[i]?.update(rune.phase === 'powered' && rune.uncovered > 0 ? Math.max(0, 1 - rune.uncovered / window) : null);
     });
     const ignitable = this.sim.ignitableIndex();
     this.primary.setInRange(ignitable === 0);
@@ -297,6 +326,7 @@ export class GameScene extends Phaser.Scene {
       case 'ignited': {
         const view = event.primary ? this.primary : this.relays[event.relayIndex];
         view?.ignite();
+        if (!event.primary) this.prisms[event.relayIndex]?.setLit(true);
         shake(this, 80, 0.003);
         if (this.level.finale) {
           if (event.primary) this.engine = new EclipseEngineView(this, this.level.primaryBeacon);

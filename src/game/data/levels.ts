@@ -29,6 +29,12 @@ const room3Exit = exitWall(830, 270);
 const room4Exit = exitWall(830, 240);
 const room5Exit = exitWall(840, 170);
 const room6Exit = exitWall(815, 260);
+const room7Exit = exitWall(800, 270);
+const room8Exit = exitWall(810, 270);
+const room9Exit = exitWall(820, 420);
+const room10Exit = exitWall(820, 270);
+const room11Exit = exitWall(820, 270);
+const room12Exit = exitWall(830, 270);
 
 /**
  * Authored campaign. Positions follow the GDD §9 design anchors and are
@@ -194,6 +200,166 @@ export const LEVELS: readonly Level[] = [
     hints: [
       { text: 'LIGHT THE SUN AND BOTH RELAYS', position: { x: 470, y: 95 }, show: 'start', hide: 'relays' },
       { text: "SHELTER IN YOUR ECHO'S SHADOW", position: { x: 520, y: 70 }, show: 'echo', hide: 'never' },
+    ],
+  },
+
+  // ---- Bonus chambers: new mechanics, unlocked by clearing the campaign ----
+  {
+    id: 7,
+    title: 'Twin Seals',
+    parTime: 40,
+    spawn: { x: 120, y: 430 },
+    primaryBeacon: { x: 200, y: 270 },
+    relayBeacons: [],
+    // Dual activation: both seals charge only while one shadow covers them together.
+    // Standing level with the flame at about (400, 270) spreads the wedge over both.
+    runes: [
+      { id: 'r7-a', position: { x: 620, y: 242 }, mode: 'latching', group: 'twin' },
+      { id: 'r7-b', position: { x: 620, y: 298 }, mode: 'latching', group: 'twin' },
+    ],
+    gate: room7Exit.gate,
+    goal: { x: 868, y: 270 },
+    obstacles: [...room7Exit.walls, { x: 300, y: 90, w: 120, h: 34 }, { x: 300, y: 446, w: 120, h: 34 }],
+    scanners: [],
+    checkpoints: [],
+    echo: false,
+    finale: false,
+    hints: [{ text: 'BOTH SEALS IN ONE SHADOW', position: { x: 620, y: 190 }, show: 'ignite', hide: 'runes' }],
+  },
+  {
+    id: 8,
+    title: 'Shifting Stones',
+    parTime: 55,
+    spawn: { x: 110, y: 120 },
+    primaryBeacon: { x: 180, y: 270 },
+    relayBeacons: [],
+    runes: [
+      { id: 'r8-a', position: { x: 660, y: 242 }, mode: 'latching', group: 'pair' },
+      { id: 'r8-b', position: { x: 660, y: 298 }, mode: 'latching', group: 'pair' },
+    ],
+    gate: room8Exit.gate,
+    goal: { x: 875, y: 270 },
+    obstacles: [...room8Exit.walls],
+    // Two pillars slide up and down through the shadow line, out of step: the
+    // seals charge only in the gaps when neither cuts the shadow short.
+    movers: [
+      { rect: { x: 520, y: 70, w: 40, h: 70 }, axis: 'y', range: 300, period: 4.2, phase: 0 },
+      { rect: { x: 590, y: 70, w: 40, h: 70 }, axis: 'y', range: 300, period: 4.2, phase: 2.1 },
+    ],
+    scanners: [],
+    checkpoints: [],
+    echo: false,
+    finale: false,
+    hints: [{ text: 'PILLARS CUT YOUR SHADOW', position: { x: 380, y: 160 }, show: 'ignite', hide: 'runes' }],
+  },
+  {
+    id: 9,
+    title: 'Lighthouse',
+    parTime: 70,
+    spawn: { x: 90, y: 470 },
+    primaryBeacon: { x: 160, y: 230 },
+    relayBeacons: [],
+    // Cast from the shelter below the middle block, about (470, 400).
+    runes: [{ id: 'r9-a', position: { x: 620, y: 478 }, mode: 'latching' }],
+    gate: room9Exit.gate,
+    goal: { x: 880, y: 420 },
+    obstacles: [
+      ...room9Exit.walls,
+      // Shelters: each block throws a beam-shadow away from the lamp.
+      { x: 187, y: 326, w: 90, h: 40 },
+      { x: 428, y: 280, w: 90, h: 40 },
+      { x: 617, y: 286, w: 90, h: 40 },
+    ],
+    // The lamp turns once every 5 s from the top wall: the room is swept for
+    // half of each turn, so cross between shelters while the beam is overhead.
+    rotors: [{ center: { x: 480, y: 64 }, length: 620, period: 5, phase: 0, clockwise: true }],
+    scanners: [],
+    checkpoints: [],
+    echo: false,
+    finale: false,
+    hints: [{ text: 'HIDE BEHIND STONE FROM THE BEAM', position: { x: 480, y: 160 }, show: 'start', hide: 'never' }],
+  },
+  {
+    id: 10,
+    title: 'Clockwork Order',
+    parTime: 60,
+    spawn: { x: 120, y: 120 },
+    primaryBeacon: { x: 480, y: 270 },
+    relayBeacons: [],
+    // Rune A holds for three seconds once its shadow leaves; rune B charges
+    // only inside that window, and powering B locks A on. Cast A from about
+    // (480, 200), then go round the bar and cast B from about (480, 340).
+    runes: [
+      { id: 'r10-a', position: { x: 480, y: 90 }, mode: 'timed', window: 3 },
+      { id: 'r10-b', position: { x: 480, y: 460 }, mode: 'latching', requires: 'r10-a' },
+    ],
+    gate: room10Exit.gate,
+    goal: { x: 880, y: 270 },
+    obstacles: [
+      ...room10Exit.walls,
+      // A bar through the flame splits the room; the way round is at its left end.
+      { x: 340, y: 255, w: 110, h: 30 },
+      { x: 510, y: 255, w: 270, h: 30 },
+    ],
+    scanners: [],
+    checkpoints: [],
+    echo: false,
+    finale: false,
+    hints: [
+      { text: 'A, THEN B WITHIN THREE SECONDS', position: { x: 300, y: 70 }, show: 'ignite', hide: 'runes' },
+    ],
+  },
+  {
+    id: 11,
+    title: 'Prism Hall',
+    parTime: 70,
+    spawn: { x: 600, y: 440 },
+    primaryBeacon: { x: 300, y: 270 },
+    // The prism: lit only after the primary, it throws light straight up.
+    relayBeacons: [{ x: 120, y: 470 }],
+    prisms: [{ relay: 0, angle: -Math.PI / 2, spread: 0.6, range: 380 }],
+    // Sealed in the corner: the flame's own shadow line to it runs through solid
+    // stone, so only the prism's light can put it in shadow. Cast from about (95, 282).
+    runes: [{ id: 'r11-a', position: { x: 65, y: 65 }, mode: 'latching' }],
+    gate: room11Exit.gate,
+    goal: { x: 880, y: 270 },
+    obstacles: [
+      ...room11Exit.walls,
+      { x: 90, y: 40, w: 200, h: 210 },
+      { x: 40, y: 90, w: 50, h: 160 },
+    ],
+    scanners: [],
+    checkpoints: [],
+    echo: false,
+    finale: false,
+    hints: [
+      { text: 'LIGHT THE FLAME, THEN THE PRISM', position: { x: 540, y: 120 }, show: 'start', hide: 'relays' },
+      { text: 'THE PRISM THROWS A NEW SHADOW', position: { x: 300, y: 420 }, show: 'ignite', hide: 'runes' },
+    ],
+  },
+  {
+    id: 12,
+    title: 'Echo Gauntlet',
+    parTime: 90,
+    spawn: { x: 90, y: 120 },
+    primaryBeacon: { x: 130, y: 270 },
+    relayBeacons: [],
+    // Held by an echo parked at about (556, 270), which also shades lane 2.
+    runes: [{ id: 'r12-a', position: { x: 770, y: 270 }, mode: 'continuous' }],
+    gate: room12Exit.gate,
+    goal: { x: 885, y: 270 },
+    obstacles: [...room12Exit.walls],
+    // Two fast lanes, too quick to time: cross each inside an echo's shade.
+    // Park an echo at about (352, 270) for lane 1, then a second at (556, 270).
+    scanners: [
+      { axis: 'vertical', min: 380, max: 500, from: 40, to: 500, period: 2.2, width: 10, phase: 0 },
+      { axis: 'vertical', min: 584, max: 700, from: 40, to: 500, period: 2, width: 10, phase: 0.5 },
+    ],
+    checkpoints: [{ x: 542, y: 270 }],
+    echo: true,
+    finale: false,
+    hints: [
+      { text: 'PARK AN ECHO BEFORE EACH LANE', position: { x: 260, y: 120 }, show: 'ignite', hide: 'never' },
     ],
   },
 ];
