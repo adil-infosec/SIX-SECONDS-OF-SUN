@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { generateCharacterSheets } from './CharacterSprites';
 
 /**
  * Glows and sparks are generated already colored instead of tinted at use
@@ -29,6 +30,7 @@ export function glowKey(color: GlowColor): string {
 
 /** Builds every shared texture once at boot. All art is generated in code. */
 export function generateTextures(scene: Phaser.Scene): void {
+  generateCharacterSheets(scene);
   const colors = Object.keys(COLORS) as GlowColor[];
   for (const color of colors) {
     const key = glowKey(color);

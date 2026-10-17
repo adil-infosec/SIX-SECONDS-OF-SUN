@@ -161,6 +161,8 @@ export class GameScene extends Phaser.Scene {
     this.relays = this.level.relayBeacons.map((p) => new BeaconView(this, p, false, mask));
     this.gate = new GateView(this, this.level.gate);
     this.portal = new PortalView(this, this.level.goal);
+    // A restart from the pause menu must not leave the walk animations frozen.
+    this.anims.resumeAll();
     this.keeper = new KeeperView(this, this.level.spawn);
 
     this.hints = this.level.hints.map((hint) => {
@@ -483,9 +485,13 @@ export class GameScene extends Phaser.Scene {
     this.pauseOverlay.setVisible(paused);
     this.time.paused = paused;
     audio.setPaused(paused);
-    if (paused) this.tweens.pauseAll();
-    else {
+    if (paused) {
+      this.tweens.pauseAll();
+      // Sprite animations are game-wide; hold the keeper and echo mid-step.
+      this.anims.pauseAll();
+    } else {
       this.tweens.resumeAll();
+      this.anims.resumeAll();
       // Drop keys held or pressed while paused so nothing fires on resume.
       this.input.keyboard?.resetKeys();
     }

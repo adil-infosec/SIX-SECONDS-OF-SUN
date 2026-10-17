@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { DEPTH, PALETTE } from '../config';
 import { PLAYER_RADIUS } from '../systems/MovementSystem';
 import type { Vec2 } from '../systems/math';
+import { facingOf, frameName, sheetKey, SPRITE_ORIGIN, SPRITE_SCALE, walkAnimKey, type Facing } from './CharacterSprites';
 import { glowKey } from './ProceduralTextures';
 
 const TRAIL_POINTS = 14;
@@ -9,13 +10,18 @@ const TRAIL_MIN_STEP = 3;
 const REPLACE_FADE_MS = 200;
 
 /**
- * The cyan afterimage: transparent body with a bright outline, a soft aura
- * and a fading trail. It shows where the echo is; RoomSim decides what it does.
+ * The cyan afterimage: the keeper's own sprite in a see-through cyan version,
+ * walking the recorded path in the direction it moves, with a soft aura and
+ * a fading trail. It shows where the echo is; RoomSim decides what it does.
  */
 export class EchoView {
   private readonly scene: Phaser.Scene;
   private readonly body: Phaser.GameObjects.Container;
   private readonly trail: Phaser.GameObjects.Graphics;
+  private readonly sprite: Phaser.GameObjects.Sprite;
+  private facing: Facing = 'down';
+  private walking = false;
+  private last: Vec2;
   private readonly points: Vec2[] = [];
   private loops = 0;
   private retiring = false;
@@ -27,14 +33,16 @@ export class EchoView {
       .setBlendMode(Phaser.BlendModes.ADD)
       .setScale(0.36)
       .setAlpha(0.35);
-    const shape = scene.add.graphics();
-    shape.fillStyle(PALETTE.cyan, 0.16);
-    shape.fillCircle(0, 0, PLAYER_RADIUS);
-    shape.lineStyle(2, PALETTE.cyan, 1);
-    shape.strokeCircle(0, 0, PLAYER_RADIUS);
-    shape.lineStyle(1, PALETTE.ice, 0.8);
-    shape.strokeCircle(0, 0, 5);
-    this.body = scene.add.container(pos.x, pos.y, [aura, shape]).setDepth(DEPTH.echo).setScale(0.6);
+    const ground = scene.add.graphics();
+    ground.fillStyle(PALETTE.cyan, 0.18);
+    ground.fillEllipse(0, PLAYER_RADIUS - 1, PLAYER_RADIUS * 1.7, PLAYER_RADIUS * 0.6);
+    this.sprite = scene.add
+      .sprite(0, 0, sheetKey('echo'), frameName('down', 0))
+      .setOrigin(SPRITE_ORIGIN.x, SPRITE_ORIGIN.y)
+      .setScale(SPRITE_SCALE)
+      .setAlpha(0.72);
+    this.last = { ...pos };
+    this.body = scene.add.container(pos.x, pos.y, [aura, ground, this.sprite]).setDepth(DEPTH.echo).setScale(0.6);
     scene.tweens.add({ targets: this.body, scale: 1, duration: 150, ease: 'Back.easeOut' });
     this.trail = scene.add.graphics().setDepth(DEPTH.echo).setBlendMode(Phaser.BlendModes.ADD);
   }
@@ -43,6 +51,12 @@ export class EchoView {
   update(pos: Vec2, alpha: number, loops: number): void {
     if (this.retiring) return;
     this.body.setPosition(pos.x, pos.y).setAlpha(alpha);
+    // Face and walk the way the recording moves; hold the last facing when it stands still.
+    const dx = pos.x - this.last.x;
+    const dy = pos.y - this.last.y;
+    const moved = Math.hypot(dx, dy) > 0.05;
+    this.last = { ...pos };
+    this.setPose(moved ? facingOf(dx, dy, this.facing) : this.facing, moved);
     if (loops !== this.loops) {
       this.loops = loops;
       this.points.length = 0;
@@ -53,6 +67,14 @@ export class EchoView {
       if (this.points.length > TRAIL_POINTS) this.points.shift();
     }
     this.drawTrail(alpha);
+  }
+
+  private setPose(facing: Facing, walking: boolean): void {
+    if (facing === this.facing && walking === this.walking) return;
+    this.facing = facing;
+    this.walking = walking;
+    if (walking) this.sprite.play(walkAnimKey('echo', facing), true);
+    else this.sprite.stop().setFrame(frameName(facing, 0));
   }
 
   /** Fades out over 0.2 s and destroys itself (when a new echo replaces it). */
