@@ -26,7 +26,8 @@ import { clampDelta } from '../systems/time';
 import { HUD } from '../ui/HUD';
 import { MemoryMeter } from '../ui/MemoryMeter';
 import { flash, shake } from '../ui/feedback';
-import { createPauseOverlay, showClearOverlay, showFailOverlay } from '../ui/Overlays';
+import { showClearOverlay } from '../ui/ClearOverlay';
+import { createPauseOverlay, showFailOverlay } from '../ui/Overlays';
 
 type GameSceneData = { levelId?: number };
 
@@ -443,6 +444,7 @@ export class GameScene extends Phaser.Scene {
     const label = this.level.finale ? 'SUNRISE' : hasLevel(this.levelId + 1) ? 'NEXT CHAMBER' : 'CHAMBERS';
     this.time.delayedCall(WIN_OVERLAY_DELAY_MS, () => {
       showClearOverlay(this, {
+        chamber: this.levelId,
         title: this.level.title,
         clearTime,
         parTime: this.level.parTime,
@@ -453,6 +455,9 @@ export class GameScene extends Phaser.Scene {
         newBestTime: result.newBestTime,
         newBestStars: result.newBestStars,
         continueLabel: label,
+        onContinue: () => this.continueAfterWin(),
+        // Same as pressing R.
+        onRetry: () => this.scene.restart({ levelId: this.levelId }),
       });
       this.canContinue = true;
     });
