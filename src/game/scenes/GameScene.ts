@@ -9,6 +9,7 @@ import { GateView, type GateCondition } from '../art/GateView';
 import { KeeperView } from '../art/KeeperView';
 import { PortalView } from '../art/PortalView';
 import { RuneView } from '../art/RuneView';
+import { ScannerView } from '../art/ScannerView';
 import { ShadowView } from '../art/ShadowView';
 import { echoAlpha } from '../systems/EchoSystem';
 import { RoomSim, STARTING_HEARTS, type FrameInput, type SimEvent } from '../systems/RoomSim';
@@ -17,7 +18,7 @@ import { computeStars } from '../systems/Scoring';
 import { clampDelta } from '../systems/time';
 import { HUD } from '../ui/HUD';
 import { MemoryMeter } from '../ui/MemoryMeter';
-import { createPauseOverlay, showClearOverlay } from '../ui/Overlays';
+import { createPauseOverlay, showClearOverlay, showFailOverlay } from '../ui/Overlays';
 
 type GameSceneData = { levelId?: number };
 
@@ -36,6 +37,7 @@ const ACTION_KEYS: Record<Action, string> = {
 const KEY_HINTS = 'WASD MOVE   ·   E IGNITE   ·   R RETRY   ·   ESC PAUSE';
 const KEY_HINTS_ECHO = 'WASD MOVE   ·   E IGNITE   ·   Q ECHO   ·   R RETRY   ·   ESC PAUSE';
 const WIN_OVERLAY_DELAY_MS = 650;
+const FAIL_RESTART_DELAY_MS = 1300;
 
 /** One chamber attempt. Game rules live in RoomSim; this scene reads input and renders. */
 export class GameScene extends Phaser.Scene {
@@ -56,11 +58,15 @@ export class GameScene extends Phaser.Scene {
   private echoShadow!: ShadowView;
   private echo: EchoView | null = null;
   private memory: MemoryMeter | null = null;
+  private scanners: ScannerView[] = [];
+  /** The echo's shadow drawn again over scanner light, so shelter visibly blocks the fire. */
+  private bandShade: ShadowView | null = null;
   private darkness!: Phaser.GameObjects.Rectangle;
   private hints: { hint: Hint; text: Phaser.GameObjects.Text; gone: boolean }[] = [];
   private pauseOverlay!: Phaser.GameObjects.Container;
   private paused = false;
-  private won = false;
+  /** The attempt is finished, won or failed; input is ignored except restart. */
+  private over = false;
   private canContinue = false;
 
   constructor() {
@@ -70,13 +76,15 @@ export class GameScene extends Phaser.Scene {
   init(data: GameSceneData): void {
     this.levelId = data.levelId ?? 1;
     this.paused = false;
-    this.won = false;
+    this.over = false;
     this.canContinue = false;
     this.relays = [];
     this.runes = [];
     this.hints = [];
     this.echo = null;
     this.memory = null;
+    this.scanners = [];
+    this.bandShade = null;
     this.pressed.clear();
   }
 
@@ -101,6 +109,17 @@ export class GameScene extends Phaser.Scene {
     this.keeperShadow = new ShadowView(this, mask);
     // The echo's shadow has a cyan edge so players can tell whose shade is whose.
     this.echoShadow = new ShadowView(this, mask, PALETTE.night, PALETTE.cyan);
+    this.scanners = this.level.scanners.map((sc) => new ScannerView(this, sc, mask));
+    if (this.scanners.length > 0) {
+      const laneShape = this.make.graphics({}, false);
+      laneShape.fillStyle(0xffffff, 1);
+      for (const view of this.scanners) view.addLaneTo(laneShape);
+      this.bandShade = new ShadowView(this, laneShape.createGeometryMask(), PALETTE.night, PALETTE.cyan, {
+        depth: DEPTH.scannerShade,
+        nearAlpha: 0.85,
+        farAlpha: 0.75,
+      });
+    }
     this.primary = new BeaconView(this, this.level.primaryBeacon, true, mask);
     this.relays = this.level.relayBeacons.map((p) => new BeaconView(this, p, false, mask));
     this.gate = new GateView(this, this.level.gate);
@@ -172,7 +191,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.won) {
+    if (this.over) {
       this.portal.update(dt);
       if (pressed.has('confirm') && this.canContinue) this.continueAfterWin();
       return;
@@ -192,9 +211,11 @@ export class GameScene extends Phaser.Scene {
     for (const event of this.sim.step(dt, input)) this.handleEvent(event);
 
     const s = this.sim.state;
-    this.keeper.sync(s.keeper, s.facing);
+    this.keeper.sync(s.keeper, s.facing, s.danger, s.invulnerable, time);
+    this.scanners.forEach((view, i) => view.update(s.scanners[i]!, s.time, time));
     this.keeperShadow.update(s.keeperShadow);
     this.echoShadow.update(s.echoShadow);
+    this.bandShade?.update(s.echoShadow);
     if (this.echo && s.echo && s.echoPos) this.echo.update(s.echoPos, echoAlpha(s.echo.t), s.echo.loops);
     this.memory?.update(s.memory, s.echoReady, s.echo ? s.echo.t : null);
     this.runes.forEach((view, i) => {
@@ -219,11 +240,7 @@ export class GameScene extends Phaser.Scene {
         if (event.primary) {
           this.tweens.add({ targets: this.darkness, alpha: 0, duration: 600, ease: 'Sine.easeOut' });
           this.dismissHints('ignite');
-          for (const h of this.hints) {
-            if (h.hint.show === 'ignite' && !h.gone && !this.hintSatisfied(h.hint)) {
-              this.tweens.add({ targets: h.text, alpha: 1, delay: 400, duration: 400 });
-            }
-          }
+          this.revealHints('ignite');
         }
         this.refreshGateBadges();
         break;
@@ -232,6 +249,18 @@ export class GameScene extends Phaser.Scene {
         this.echo?.retire();
         this.echo = new EchoView(this, this.sim.state.echoPos ?? this.sim.state.keeper);
         this.dismissHints('echo');
+        this.revealHints('echo');
+        break;
+      case 'hit':
+        this.keeper.hit();
+        this.cameras.main.shake(120, 0.006);
+        this.cameras.main.flash(120, 246, 91, 62, false);
+        this.hud.setHearts(event.hearts, STARTING_HEARTS);
+        break;
+      case 'respawned':
+        break;
+      case 'failed':
+        this.onFailed();
         break;
       case 'echoDenied':
         this.memory?.deny();
@@ -264,7 +293,23 @@ export class GameScene extends Phaser.Scene {
     const s = this.sim.state;
     if (hint.hide === 'ignite') return s.primaryLit;
     if (hint.hide === 'runes') return s.runesPowered.every(Boolean);
-    return s.echo !== null;
+    if (hint.hide === 'echo') return s.echo !== null;
+    return false;
+  }
+
+  /** Fades in every hint that appears on `show`, unless it is already satisfied. */
+  private revealHints(show: Hint['show']): void {
+    for (const h of this.hints) {
+      if (h.hint.show === show && !h.gone && !this.hintSatisfied(h.hint)) {
+        this.tweens.add({ targets: h.text, alpha: 1, delay: 400, duration: 400 });
+      }
+    }
+  }
+
+  private onFailed(): void {
+    this.over = true;
+    showFailOverlay(this);
+    this.time.delayedCall(FAIL_RESTART_DELAY_MS, () => this.scene.restart({ levelId: this.levelId }));
   }
 
   /** Fades out and removes every hint with the given trigger, once. */
@@ -288,7 +333,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onWon(clearTime: number, hits: number): void {
-    this.won = true;
+    this.over = true;
     this.hud.setTime(clearTime);
     this.portal.burst();
     this.cameras.main.shake(120, 0.004);
@@ -317,7 +362,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private autoPause(): void {
-    if (!this.won) this.setPaused(true);
+    if (!this.over) this.setPaused(true);
   }
 
   private setPaused(paused: boolean): void {

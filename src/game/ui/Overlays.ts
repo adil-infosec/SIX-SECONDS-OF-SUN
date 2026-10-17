@@ -21,6 +21,16 @@ export function createPauseOverlay(scene: Phaser.Scene, onClick: () => void): Ph
   return scene.add.container(0, 0, [dim, title, hint]).setDepth(DEPTH.overlay).setVisible(false);
 }
 
+/** Out of hearts: a brief "extinguished" card before the room restarts on its own. */
+export function showFailOverlay(scene: Phaser.Scene): Phaser.GameObjects.Container {
+  const dim = scene.add.rectangle(CX, CY, GAME_WIDTH, GAME_HEIGHT, PALETTE.night, 0.7);
+  const title = text(scene, CX, CY - 18, 'EXTINGUISHED', 32, CSS_COLORS.fire, true).setLetterSpacing(8);
+  const hint = text(scene, CX, CY + 26, 'THE CHAMBER RESETS…', 13, CSS_COLORS.muted).setLetterSpacing(3);
+  const overlay = scene.add.container(0, 0, [dim, title, hint]).setDepth(DEPTH.overlay).setAlpha(0);
+  scene.tweens.add({ targets: overlay, alpha: 1, duration: 200 });
+  return overlay;
+}
+
 export function showClearOverlay(
   scene: Phaser.Scene,
   title: string,

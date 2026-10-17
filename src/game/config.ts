@@ -21,6 +21,9 @@ export const DEPTH = {
   /** Rune engraving sits under shadows so the wedge visibly covers it. */
   runeBase: 1.5,
   shadow: 2,
+  /** Scanner light runs along the floor, under bodies, and the echo's shade dims it. */
+  scanner: 2.5,
+  scannerShade: 2.6,
   rune: 3,
   solid: 4,
   darkness: 4.5,

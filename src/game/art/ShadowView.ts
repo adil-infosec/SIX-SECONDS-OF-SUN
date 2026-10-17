@@ -2,8 +2,9 @@ import Phaser from 'phaser';
 import { DEPTH, PALETTE } from '../config';
 import type { Wedge } from '../systems/ShadowSystem';
 
-const NEAR_ALPHA = 0.74;
-const FAR_ALPHA = 0.1;
+export type ShadowStyle = { depth: number; nearAlpha: number; farAlpha: number };
+
+const DEFAULT_STYLE: ShadowStyle = { depth: DEPTH.shadow, nearAlpha: 0.74, farAlpha: 0.1 };
 
 /**
  * Draws a caster's shadow wedge: dense at the body, fading toward the far
@@ -13,16 +14,19 @@ export class ShadowView {
   private readonly g: Phaser.GameObjects.Graphics;
   private readonly color: number;
   private readonly edge: number;
+  private readonly style: ShadowStyle;
 
   constructor(
     scene: Phaser.Scene,
     mask: Phaser.Display.Masks.GeometryMask,
     color: number = PALETTE.night,
     edge: number = PALETTE.violet,
+    style: ShadowStyle = DEFAULT_STYLE,
   ) {
     this.color = color;
     this.edge = edge;
-    this.g = scene.add.graphics().setDepth(DEPTH.shadow);
+    this.style = style;
+    this.g = scene.add.graphics().setDepth(style.depth);
     this.g.setMask(mask);
   }
 
@@ -32,12 +36,14 @@ export class ShadowView {
     if (!wedge) return;
     const [nl, fl, fr, nr] = wedge;
     const c = this.color;
+    const near = this.style.nearAlpha;
+    const far = this.style.farAlpha;
     // Canvas ignores gradients and keeps this solid fill; WebGL replaces it below.
-    g.fillStyle(c, 0.5);
+    g.fillStyle(c, (near + far) / 2);
     // WebGL maps the gradient's TL/TR/BL colors to a triangle's three vertices.
-    g.fillGradientStyle(c, c, c, c, NEAR_ALPHA, NEAR_ALPHA, FAR_ALPHA, FAR_ALPHA);
+    g.fillGradientStyle(c, c, c, c, near, near, far, far);
     g.fillTriangle(nl.x, nl.y, nr.x, nr.y, fl.x, fl.y);
-    g.fillGradientStyle(c, c, c, c, NEAR_ALPHA, FAR_ALPHA, FAR_ALPHA, FAR_ALPHA);
+    g.fillGradientStyle(c, c, c, c, near, far, far, far);
     g.fillTriangle(nr.x, nr.y, fr.x, fr.y, fl.x, fl.y);
     g.lineStyle(1, this.edge, 0.3);
     g.lineBetween(nl.x, nl.y, fl.x, fl.y);

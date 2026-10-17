@@ -26,6 +26,7 @@ function exitWall(x: number, gateY: number): { walls: Rect[]; gate: Rect } {
 const room1Exit = exitWall(805, 260);
 const room2Exit = exitWall(815, 260);
 const room3Exit = exitWall(830, 270);
+const room4Exit = exitWall(830, 240);
 
 /**
  * Authored campaign. Positions follow the GDD §9 design anchors and are
@@ -93,6 +94,31 @@ export const LEVELS: readonly Level[] = [
     scanners: [],
     echo: true,
     hints: [{ text: 'HOLD THE SHADOW, THEN PRESS Q', position: { x: 450, y: 196 }, show: 'ignite', hide: 'echo' }],
+  },
+  {
+    id: 4,
+    title: 'Furnace Hour',
+    parTime: 95,
+    spawn: { x: 130, y: 380 },
+    primaryBeacon: { x: 200, y: 240 },
+    relayBeacons: [],
+    runes: [{ id: 'r4-a', position: { x: 700, y: 240 }, mode: 'continuous' }],
+    gate: room4Exit.gate,
+    goal: { x: 880, y: 240 },
+    obstacles: [
+      ...room4Exit.walls,
+      { x: 300, y: 80, w: 100, h: 40 },
+      { x: 330, y: 400, w: 120, h: 40 },
+    ],
+    // A full-height band sweeping the stretch in front of the gate. It can only
+    // be crossed inside the echo's shadow: an echo parked near (480, 240) both
+    // holds the rune and shades x 554-720 along the line.
+    scanners: [{ axis: 'vertical', min: 570, max: 760, from: 40, to: 500, period: 4.8, width: 10, phase: 0 }],
+    echo: true,
+    hints: [
+      { text: 'LEAVE AN ECHO ON THE LINE', position: { x: 400, y: 180 }, show: 'ignite', hide: 'echo' },
+      { text: "SHELTER IN YOUR ECHO'S SHADOW", position: { x: 400, y: 160 }, show: 'echo', hide: 'never' },
+    ],
   },
 ];
 

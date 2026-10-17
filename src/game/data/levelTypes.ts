@@ -7,27 +7,33 @@ export type RuneMode = 'latching' | 'continuous';
 /** The GDD also calls these "glyphs"; the code uses "rune" throughout. */
 export type Rune = { id: string; position: Vec2; mode: RuneMode };
 
-/** GDD §8.6 fire scanner lane (used from room 4). */
+/**
+ * GDD §8.6 fire scanner. A `vertical` band (parallel to y) sweeps along x
+ * between `min` and `max`; a `horizontal` band sweeps along y. The band
+ * runs from `from` to `to` along its length. `phase` shifts the sine in
+ * seconds; `width` is the drawn core thickness.
+ */
 export type Scanner = {
   axis: 'horizontal' | 'vertical';
   min: number;
   max: number;
-  fixed: number;
+  from: number;
+  to: number;
   period: number;
   width: number;
   phase: number;
 };
 
 /**
- * On-screen instruction. `show`: visible from the start, or from when the
- * primary beacon is lit. `hide`: removed when the beacon is lit, when every
- * rune is powered, or when the first echo is created.
+ * On-screen instruction. `show`: visible from the start, from when the
+ * primary beacon is lit, or from the first echo. `hide`: removed when the
+ * beacon is lit, when every rune is powered, at the first echo, or never.
  */
 export type Hint = {
   text: string;
   position: Vec2;
-  show: 'start' | 'ignite';
-  hide: 'ignite' | 'runes' | 'echo';
+  show: 'start' | 'ignite' | 'echo';
+  hide: 'ignite' | 'runes' | 'echo' | 'never';
 };
 
 /** One authored chamber (GDD §9). All coordinates are in the 960×540 world. */

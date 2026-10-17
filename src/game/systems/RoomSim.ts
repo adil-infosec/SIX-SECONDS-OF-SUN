@@ -13,11 +13,15 @@ import { doorConditionMet, nextGateOpen } from './GlyphDoorSystem';
 import { circleIntersectsRect, distance, type Circle, type Rect, type Vec2 } from './math';
 import { inputToVelocity, moveCircle, PLAYER_RADIUS, type CollisionWorld, type MoveInput } from './MovementSystem';
 import { initialRuneState, stepRune, type RuneState } from './RuneSystem';
-import { inAnyShadow, shadowWedge, type Wedge } from './ShadowSystem';
+import { scannerPosition, scannerTouches, scannerWarns } from './ScannerSystem';
+import { inAnyShadow, pointInConvexPolygon, shadowWedge, type Wedge } from './ShadowSystem';
 
 /** GDD §8.1: the keeper exits when their center is inside the portal radius. */
 export const GOAL_RADIUS = 25;
 export const STARTING_HEARTS = 3;
+/** GDD §8.6 hit response. */
+export const HIT_FREEZE_SECONDS = 0.12;
+export const INVULNERABLE_SECONDS = 1;
 
 export type FrameInput = MoveInput & {
   /** Edge-triggered: true only on the frame `E` went down. */
@@ -36,6 +40,9 @@ export type SimEvent =
   | { type: 'runeReleased'; index: number }
   | { type: 'gateOpened' }
   | { type: 'gateClosed' }
+  | { type: 'hit'; hearts: number }
+  | { type: 'respawned' }
+  | { type: 'failed' }
   | { type: 'won'; clearTime: number; hits: number };
 
 export type RunState = {
@@ -63,8 +70,22 @@ export type RunState = {
   echoShadow: Wedge | null;
   gateOpen: boolean;
   gateEverOpened: boolean;
+  /** Room clock in seconds; drives scanners. Unlike the stopwatch it runs from the first frame. */
+  time: number;
+  /** Each scanner's band position this frame, along its sweep axis. */
+  scanners: number[];
+  /** The keeper's center is inside the echo's shadow, so scanners cannot burn them. */
+  sheltered: boolean;
+  /** A scanner will touch the keeper within 0.35 s (and they are not protected). */
+  danger: boolean;
   hearts: number;
   hits: number;
+  /** Seconds of hit-stop left; the whole room is frozen meanwhile. */
+  freeze: number;
+  /** Seconds of post-respawn protection left. */
+  invulnerable: number;
+  /** Out of hearts: the attempt is over and the scene restarts it. */
+  failed: boolean;
   won: boolean;
 };
 
@@ -100,8 +121,15 @@ export class RoomSim {
       echoShadow: null,
       gateOpen: false,
       gateEverOpened: false,
+      time: 0,
+      scanners: level.scanners.map((sc) => scannerPosition(sc, 0)),
+      sheltered: false,
+      danger: false,
       hearts: STARTING_HEARTS,
       hits: 0,
+      freeze: 0,
+      invulnerable: 0,
+      failed: false,
       won: false,
     };
     this.staticRects = [...level.obstacles];
@@ -132,7 +160,20 @@ export class RoomSim {
   step(dt: number, input: FrameInput): SimEvent[] {
     const s = this.state;
     const events: SimEvent[] = [];
-    if (s.won || dt <= 0) return events;
+    if (s.won || s.failed || dt <= 0) return events;
+
+    // Hit-stop: hold everything still, then put the keeper back at the safe point.
+    if (s.freeze > 0) {
+      s.freeze = Math.max(0, s.freeze - dt);
+      if (s.freeze === 0) {
+        s.keeper = { ...this.level.spawn };
+        s.invulnerable = INVULNERABLE_SECONDS;
+        events.push({ type: 'respawned' });
+      }
+      return events;
+    }
+    s.time += dt;
+    s.invulnerable = Math.max(0, s.invulnerable - dt);
 
     const velocity = inputToVelocity(input);
     s.moving = velocity.x !== 0 || velocity.y !== 0;
@@ -201,6 +242,27 @@ export class RoomSim {
       events.push({ type: open ? 'gateOpened' : 'gateClosed' });
     }
     if (open) s.gateEverOpened = true;
+
+    // Fire scanners burn the keeper unless their center is in the echo's shadow
+    // (never their own) or they were just hit (GDD §8.6).
+    s.scanners = this.level.scanners.map((sc) => scannerPosition(sc, s.time));
+    s.sheltered = s.echoShadow !== null && pointInConvexPolygon(s.keeper, s.echoShadow);
+    const protectedNow = s.sheltered || s.invulnerable > 0;
+    s.danger = !protectedNow && this.level.scanners.some((sc) => scannerWarns(sc, s.time, s.keeper));
+    if (!protectedNow && this.level.scanners.some((sc) => scannerTouches(sc, s.time, s.keeper))) {
+      s.hearts -= 1;
+      s.hits += 1;
+      s.danger = false;
+      events.push({ type: 'hit', hearts: s.hearts });
+      if (s.hearts <= 0) {
+        s.failed = true;
+        s.timerRunning = false;
+        events.push({ type: 'failed' });
+      } else {
+        s.freeze = HIT_FREEZE_SECONDS;
+      }
+      return events;
+    }
 
     // The goal sits behind the gate, so it can only be reached through an open
     // gate; a gate that closes after the keeper is through does not undo the exit.
