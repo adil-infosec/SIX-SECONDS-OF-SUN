@@ -178,7 +178,7 @@ export class GameScene extends Phaser.Scene {
       return { hint, text, gone: false };
     });
 
-    this.hud = new HUD(this, this.level.id, this.level.title, this.level.echo ? KEY_HINTS_ECHO : KEY_HINTS);
+    this.hud = new HUD(this, this.level.id, this.level.title, this.level.echo ? KEY_HINTS_ECHO : KEY_HINTS, this.level.runes.length);
     if (CAPTURE) this.showCaptureCaption();
     if (this.level.echo) this.memory = new MemoryMeter(this);
     this.hud.setHearts(STARTING_HEARTS, STARTING_HEARTS);
@@ -278,6 +278,7 @@ export class GameScene extends Phaser.Scene {
     for (const relay of this.relays) relay.update(time);
     this.portal.update(dt);
     this.hud.setTime(s.elapsed);
+    this.hud.setObjectives(s);
 
     audio.setWarmth(s.primaryLit ? 1 : 0);
     audio.setCrackle((s.primaryLit ? 1 : 0) + s.relaysLit.filter(Boolean).length);
