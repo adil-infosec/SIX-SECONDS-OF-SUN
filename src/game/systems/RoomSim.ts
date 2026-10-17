@@ -1,6 +1,14 @@
 import { CHAMBER_BOUNDS } from '../config';
 import type { Level } from '../data/levelTypes';
 import { findIgnitable, PRIMARY_BRAZIER_RADIUS, RELAY_BRAZIER_RADIUS, type BrazierState } from './BeaconSystem';
+import {
+  advanceEcho,
+  createEcho,
+  ECHO_COOLDOWN_SECONDS,
+  echoPosition,
+  MovementHistory,
+  type EchoState,
+} from './EchoSystem';
 import { doorConditionMet, nextGateOpen } from './GlyphDoorSystem';
 import { circleIntersectsRect, distance, type Circle, type Rect, type Vec2 } from './math';
 import { inputToVelocity, moveCircle, PLAYER_RADIUS, type CollisionWorld, type MoveInput } from './MovementSystem';
@@ -14,12 +22,16 @@ export const STARTING_HEARTS = 3;
 export type FrameInput = MoveInput & {
   /** Edge-triggered: true only on the frame `E` went down. */
   ignite: boolean;
+  /** Edge-triggered: true only on the frame `Q` went down. */
+  echo: boolean;
 };
 
-export const NO_INPUT: FrameInput = { up: false, down: false, left: false, right: false, ignite: false };
+export const NO_INPUT: FrameInput = { up: false, down: false, left: false, right: false, ignite: false, echo: false };
 
 export type SimEvent =
   | { type: 'ignited'; primary: boolean; relayIndex: number }
+  | { type: 'echoCreated' }
+  | { type: 'echoDenied' }
   | { type: 'runePowered'; index: number }
   | { type: 'runeReleased'; index: number }
   | { type: 'gateOpened' }
@@ -40,6 +52,15 @@ export type RunState = {
   runesPowered: boolean[];
   /** Shadow cast by the keeper this frame; null while the primary is unlit. */
   keeperShadow: Wedge | null;
+  /** Seconds of recorded movement available to an echo, 0..6. */
+  memory: number;
+  /** True when `Q` would create an echo right now. */
+  echoReady: boolean;
+  echoCooldown: number;
+  echo: EchoState | null;
+  echoPos: Vec2 | null;
+  /** Shadow cast by the echo; it counts for runes exactly like the keeper's. */
+  echoShadow: Wedge | null;
   gateOpen: boolean;
   gateEverOpened: boolean;
   hearts: number;
@@ -56,6 +77,7 @@ export class RoomSim {
   readonly state: RunState;
   private readonly staticRects: Rect[];
   private readonly brazierCircles: Circle[];
+  private readonly history: MovementHistory;
 
   constructor(level: Level) {
     this.level = level;
@@ -70,6 +92,12 @@ export class RoomSim {
       runes: level.runes.map(() => initialRuneState()),
       runesPowered: level.runes.map(() => false),
       keeperShadow: null,
+      memory: 0,
+      echoReady: false,
+      echoCooldown: 0,
+      echo: null,
+      echoPos: null,
+      echoShadow: null,
       gateOpen: false,
       gateEverOpened: false,
       hearts: STARTING_HEARTS,
@@ -77,6 +105,7 @@ export class RoomSim {
       won: false,
     };
     this.staticRects = [...level.obstacles];
+    this.history = new MovementHistory(level.spawn);
     this.brazierCircles = [
       { ...level.primaryBeacon, r: PRIMARY_BRAZIER_RADIUS },
       ...level.relayBeacons.map((p) => ({ ...p, r: RELAY_BRAZIER_RADIUS })),
@@ -115,6 +144,8 @@ export class RoomSim {
     if (s.timerRunning) s.elapsed += dt;
 
     s.keeper = moveCircle(s.keeper, velocity, dt, PLAYER_RADIUS, this.collisionWorld());
+    this.history.advance(dt, s.keeper);
+    s.memory = this.history.seconds;
 
     if (input.ignite) {
       const index = this.ignitableIndex();
@@ -127,9 +158,27 @@ export class RoomSim {
       }
     }
 
+    // The echo replays a recorded path: it never collides, ignites or exits.
+    s.echoCooldown = Math.max(0, s.echoCooldown - dt);
+    if (s.echo) s.echo = advanceEcho(s.echo, dt);
+    if (input.echo && this.level.echo) {
+      if (this.history.ready && s.echoCooldown === 0) {
+        // Replacing an echo drops the old one's shadow at once.
+        s.echo = createEcho(this.history.snapshot());
+        s.echoCooldown = ECHO_COOLDOWN_SECONDS;
+        events.push({ type: 'echoCreated' });
+      } else {
+        events.push({ type: 'echoDenied' });
+      }
+    }
+    s.echoPos = s.echo ? echoPosition(s.echo) : null;
+    s.echoReady = this.level.echo && this.history.ready && s.echoCooldown === 0;
+
     // Shadows exist only while the primary flame burns (GDD §8.4).
-    s.keeperShadow = s.primaryLit ? shadowWedge(this.level.primaryBeacon, s.keeper) : null;
-    const wedges = [s.keeperShadow];
+    const light = this.level.primaryBeacon;
+    s.keeperShadow = s.primaryLit ? shadowWedge(light, s.keeper) : null;
+    s.echoShadow = s.primaryLit && s.echoPos ? shadowWedge(light, s.echoPos) : null;
+    const wedges = [s.keeperShadow, s.echoShadow];
     this.level.runes.forEach((rune, i) => {
       const before = s.runes[i]!;
       const after = stepRune(before, rune.mode, inAnyShadow(rune.position, wedges), dt);

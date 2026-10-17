@@ -1,14 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { getLevel } from '../src/game/data/levels';
-import { NO_INPUT, RoomSim, type SimEvent } from '../src/game/systems/RoomSim';
+import { RoomSim, type SimEvent } from '../src/game/systems/RoomSim';
 import { computeStars } from '../src/game/systems/Scoring';
-import { driveTo, FRAME, pressIgnite } from './helpers/drive';
+import { driveTo, pressIgnite, wait } from './helpers/drive';
 
 const level = getLevel(2);
-
-function wait(sim: RoomSim, seconds: number, events: SimEvent[] = []): void {
-  for (let t = 0; t < seconds; t += FRAME) events.push(...sim.step(FRAME, NO_INPUT));
-}
 
 function lightBeacon(sim: RoomSim, events: SimEvent[] = []): void {
   driveTo(sim, { x: 260, y: 315 }, 10, events);

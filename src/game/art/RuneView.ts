@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CSS_COLORS, DEPTH, FONT_UI, PALETTE } from '../config';
 import type { Vec2 } from '../systems/math';
+import type { RuneMode } from '../data/levelTypes';
 import type { RunePhase } from '../systems/RuneSystem';
 import { glowKey, TEXTURE_KEYS } from './ProceduralTextures';
 
@@ -23,7 +24,7 @@ export class RuneView {
   private shownCharge = -1;
   private shownPhase: RunePhase | null = null;
 
-  constructor(scene: Phaser.Scene, pos: Vec2) {
+  constructor(scene: Phaser.Scene, pos: Vec2, mode: RuneMode) {
     this.scene = scene;
     this.pos = pos;
 
@@ -33,6 +34,16 @@ export class RuneView {
     base.lineStyle(2, PALETTE.violet, 0.75);
     base.strokeCircle(pos.x, pos.y, DISK_RADIUS);
     drawSigil(base, pos, PALETTE.violet, 0.8);
+    // Continuous runes (power only while shaded) wear a dashed outer ring.
+    if (mode === 'continuous') {
+      base.lineStyle(1.5, PALETTE.violet, 0.7);
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        base.beginPath();
+        base.arc(pos.x, pos.y, RING_RADIUS + 6, a, a + Math.PI / 12);
+        base.strokePath();
+      }
+    }
 
     this.glow = scene.add
       .image(pos.x, pos.y, glowKey('activated'))

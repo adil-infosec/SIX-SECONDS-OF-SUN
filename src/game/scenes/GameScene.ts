@@ -3,26 +3,30 @@ import { CHAMBER_BOUNDS, CSS_COLORS, DEPTH, FONT_UI, PALETTE, SCENE_KEYS } from 
 import { getLevel, hasLevel } from '../data/levels';
 import type { Hint, Level } from '../data/levelTypes';
 import { BeaconView } from '../art/BeaconView';
+import { EchoView } from '../art/EchoView';
 import { createInteriorMask, drawChamber } from '../art/ChamberArt';
 import { GateView, type GateCondition } from '../art/GateView';
 import { KeeperView } from '../art/KeeperView';
 import { PortalView } from '../art/PortalView';
 import { RuneView } from '../art/RuneView';
 import { ShadowView } from '../art/ShadowView';
+import { echoAlpha } from '../systems/EchoSystem';
 import { RoomSim, STARTING_HEARTS, type FrameInput, type SimEvent } from '../systems/RoomSim';
 import { chargeFraction } from '../systems/RuneSystem';
 import { computeStars } from '../systems/Scoring';
 import { clampDelta } from '../systems/time';
 import { HUD } from '../ui/HUD';
+import { MemoryMeter } from '../ui/MemoryMeter';
 import { createPauseOverlay, showClearOverlay } from '../ui/Overlays';
 
 type GameSceneData = { levelId?: number };
 
 type MoveKeys = Record<'up' | 'down' | 'left' | 'right' | 'w' | 'a' | 's' | 'd', Phaser.Input.Keyboard.Key>;
 
-type Action = 'ignite' | 'restart' | 'pause' | 'mute' | 'confirm';
+type Action = 'ignite' | 'echo' | 'restart' | 'pause' | 'mute' | 'confirm';
 const ACTION_KEYS: Record<Action, string> = {
   ignite: 'E',
+  echo: 'Q',
   restart: 'R',
   pause: 'ESC',
   mute: 'M',
@@ -30,6 +34,7 @@ const ACTION_KEYS: Record<Action, string> = {
 };
 
 const KEY_HINTS = 'WASD MOVE   ·   E IGNITE   ·   R RETRY   ·   ESC PAUSE';
+const KEY_HINTS_ECHO = 'WASD MOVE   ·   E IGNITE   ·   Q ECHO   ·   R RETRY   ·   ESC PAUSE';
 const WIN_OVERLAY_DELAY_MS = 650;
 
 /** One chamber attempt. Game rules live in RoomSim; this scene reads input and renders. */
@@ -48,6 +53,9 @@ export class GameScene extends Phaser.Scene {
   private portal!: PortalView;
   private runes: RuneView[] = [];
   private keeperShadow!: ShadowView;
+  private echoShadow!: ShadowView;
+  private echo: EchoView | null = null;
+  private memory: MemoryMeter | null = null;
   private darkness!: Phaser.GameObjects.Rectangle;
   private hints: { hint: Hint; text: Phaser.GameObjects.Text; gone: boolean }[] = [];
   private pauseOverlay!: Phaser.GameObjects.Container;
@@ -67,6 +75,8 @@ export class GameScene extends Phaser.Scene {
     this.relays = [];
     this.runes = [];
     this.hints = [];
+    this.echo = null;
+    this.memory = null;
     this.pressed.clear();
   }
 
@@ -87,8 +97,10 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0)
       .setDepth(DEPTH.darkness);
 
-    this.runes = this.level.runes.map((r) => new RuneView(this, r.position));
+    this.runes = this.level.runes.map((r) => new RuneView(this, r.position, r.mode));
     this.keeperShadow = new ShadowView(this, mask);
+    // The echo's shadow has a cyan edge so players can tell whose shade is whose.
+    this.echoShadow = new ShadowView(this, mask, PALETTE.night, PALETTE.cyan);
     this.primary = new BeaconView(this, this.level.primaryBeacon, true, mask);
     this.relays = this.level.relayBeacons.map((p) => new BeaconView(this, p, false, mask));
     this.gate = new GateView(this, this.level.gate);
@@ -100,16 +112,17 @@ export class GameScene extends Phaser.Scene {
         .text(hint.position.x, hint.position.y, hint.text, {
           fontFamily: FONT_UI,
           fontSize: '15px',
-          color: hint.show === 'afterIgnite' ? CSS_COLORS.ice : CSS_COLORS.muted,
+          color: hint.show === 'ignite' ? CSS_COLORS.ice : CSS_COLORS.muted,
         })
         .setOrigin(0.5)
-        .setLetterSpacing(hint.show === 'afterIgnite' ? 2 : 0)
+        .setLetterSpacing(hint.show === 'ignite' ? 2 : 0)
         .setDepth(DEPTH.hint)
-        .setAlpha(hint.show === 'beforeIgnite' ? 1 : 0);
+        .setAlpha(hint.show === 'start' ? 1 : 0);
       return { hint, text, gone: false };
     });
 
-    this.hud = new HUD(this, this.level.id, this.level.title, KEY_HINTS);
+    this.hud = new HUD(this, this.level.id, this.level.title, this.level.echo ? KEY_HINTS_ECHO : KEY_HINTS);
+    if (this.level.echo) this.memory = new MemoryMeter(this);
     this.hud.setHearts(STARTING_HEARTS, STARTING_HEARTS);
     this.hud.setMuted(this.sound.mute);
     this.refreshGateBadges();
@@ -174,12 +187,16 @@ export class GameScene extends Phaser.Scene {
       left: k.left.isDown || k.a.isDown,
       right: k.right.isDown || k.d.isDown,
       ignite: pressed.has('ignite'),
+      echo: pressed.has('echo'),
     };
     for (const event of this.sim.step(dt, input)) this.handleEvent(event);
 
     const s = this.sim.state;
     this.keeper.sync(s.keeper, s.facing);
     this.keeperShadow.update(s.keeperShadow);
+    this.echoShadow.update(s.echoShadow);
+    if (this.echo && s.echo && s.echoPos) this.echo.update(s.echoPos, echoAlpha(s.echo.t), s.echo.loops);
+    this.memory?.update(s.memory, s.echoReady, s.echo ? s.echo.t : null);
     this.runes.forEach((view, i) => {
       const rune = s.runes[i]!;
       view.setCharge(chargeFraction(rune), rune.phase);
@@ -201,21 +218,27 @@ export class GameScene extends Phaser.Scene {
         this.cameras.main.shake(80, 0.003);
         if (event.primary) {
           this.tweens.add({ targets: this.darkness, alpha: 0, duration: 600, ease: 'Sine.easeOut' });
-          this.dismissHints('beforeIgnite');
-          if (!this.sim.state.runesPowered.every(Boolean)) {
-            for (const h of this.hints) {
-              if (h.hint.show === 'afterIgnite' && !h.gone) {
-                this.tweens.add({ targets: h.text, alpha: 1, delay: 400, duration: 400 });
-              }
+          this.dismissHints('ignite');
+          for (const h of this.hints) {
+            if (h.hint.show === 'ignite' && !h.gone && !this.hintSatisfied(h.hint)) {
+              this.tweens.add({ targets: h.text, alpha: 1, delay: 400, duration: 400 });
             }
           }
         }
         this.refreshGateBadges();
         break;
       }
+      case 'echoCreated':
+        this.echo?.retire();
+        this.echo = new EchoView(this, this.sim.state.echoPos ?? this.sim.state.keeper);
+        this.dismissHints('echo');
+        break;
+      case 'echoDenied':
+        this.memory?.deny();
+        break;
       case 'runePowered':
         this.runes[event.index]?.powerUp();
-        if (this.sim.state.runesPowered.every(Boolean)) this.dismissHints('afterIgnite');
+        if (this.sim.state.runesPowered.every(Boolean)) this.dismissHints('runes');
         this.refreshGateBadges();
         break;
       case 'runeReleased':
@@ -236,10 +259,18 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Fades out and removes every hint of the given kind, once. */
-  private dismissHints(show: Hint['show']): void {
+  /** True once the event that removes this hint has already happened. */
+  private hintSatisfied(hint: Hint): boolean {
+    const s = this.sim.state;
+    if (hint.hide === 'ignite') return s.primaryLit;
+    if (hint.hide === 'runes') return s.runesPowered.every(Boolean);
+    return s.echo !== null;
+  }
+
+  /** Fades out and removes every hint with the given trigger, once. */
+  private dismissHints(hide: Hint['hide']): void {
     for (const h of this.hints) {
-      if (h.hint.show !== show || h.gone) continue;
+      if (h.hint.hide !== hide || h.gone) continue;
       h.gone = true;
       this.tweens.killTweensOf(h.text);
       this.tweens.add({ targets: h.text, alpha: 0, duration: 300, onComplete: () => h.text.destroy() });

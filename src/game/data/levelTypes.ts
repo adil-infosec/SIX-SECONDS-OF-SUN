@@ -19,10 +19,16 @@ export type Scanner = {
 };
 
 /**
- * On-screen instruction. `beforeIgnite` hints leave when the primary beacon
- * is lit; `afterIgnite` hints appear then and leave once every rune is powered.
+ * On-screen instruction. `show`: visible from the start, or from when the
+ * primary beacon is lit. `hide`: removed when the beacon is lit, when every
+ * rune is powered, or when the first echo is created.
  */
-export type Hint = { text: string; position: Vec2; show: 'beforeIgnite' | 'afterIgnite' };
+export type Hint = {
+  text: string;
+  position: Vec2;
+  show: 'start' | 'ignite';
+  hide: 'ignite' | 'runes' | 'echo';
+};
 
 /** One authored chamber (GDD §9). All coordinates are in the 960×540 world. */
 export type Level = {
@@ -39,5 +45,7 @@ export type Level = {
   /** Solid boxes, including the exit wall segments above and below the gate. */
   obstacles: Rect[];
   scanners: Scanner[];
+  /** Whether `Q` (the six-second echo) is available in this chamber. */
+  echo: boolean;
   hints: Hint[];
 };

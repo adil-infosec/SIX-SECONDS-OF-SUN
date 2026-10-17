@@ -14,7 +14,12 @@ export class ShadowView {
   private readonly color: number;
   private readonly edge: number;
 
-  constructor(scene: Phaser.Scene, mask: Phaser.Display.Masks.GeometryMask, color = PALETTE.night, edge = PALETTE.violet) {
+  constructor(
+    scene: Phaser.Scene,
+    mask: Phaser.Display.Masks.GeometryMask,
+    color: number = PALETTE.night,
+    edge: number = PALETTE.violet,
+  ) {
     this.color = color;
     this.edge = edge;
     this.g = scene.add.graphics().setDepth(DEPTH.shadow);

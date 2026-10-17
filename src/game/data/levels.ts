@@ -25,6 +25,7 @@ function exitWall(x: number, gateY: number): { walls: Rect[]; gate: Rect } {
 
 const room1Exit = exitWall(805, 260);
 const room2Exit = exitWall(815, 260);
+const room3Exit = exitWall(830, 270);
 
 /**
  * Authored campaign. Positions follow the GDD §9 design anchors and are
@@ -48,7 +49,8 @@ export const LEVELS: readonly Level[] = [
       { x: 230, y: 420, w: 130, h: 34 },
     ],
     scanners: [],
-    hints: [{ text: 'Press E to light the beacon', position: { x: 425, y: 200 }, show: 'beforeIgnite' }],
+    echo: false,
+    hints: [{ text: 'Press E to light the beacon', position: { x: 425, y: 200 }, show: 'start', hide: 'ignite' }],
   },
   {
     id: 2,
@@ -68,7 +70,29 @@ export const LEVELS: readonly Level[] = [
       { x: 560, y: 384, w: 140, h: 34 },
     ],
     scanners: [],
-    hints: [{ text: 'KEEP THE RUNE IN SHADOW', position: { x: 620, y: 196 }, show: 'afterIgnite' }],
+    echo: false,
+    hints: [{ text: 'KEEP THE RUNE IN SHADOW', position: { x: 620, y: 196 }, show: 'ignite', hide: 'runes' }],
+  },
+  {
+    id: 3,
+    title: 'The Other You',
+    parTime: 80,
+    spawn: { x: 160, y: 400 },
+    primaryBeacon: { x: 230, y: 270 },
+    relayBeacons: [],
+    // Continuous: the gate is open only while a shadow covers the rune, and the
+    // rune is too far from the gate for the keeper to hold it and still get through.
+    runes: [{ id: 'r3-a', position: { x: 675, y: 270 }, mode: 'continuous' }],
+    gate: room3Exit.gate,
+    goal: { x: 880, y: 270 },
+    obstacles: [
+      ...room3Exit.walls,
+      { x: 540, y: 80, w: 120, h: 40 },
+      { x: 500, y: 380, w: 40, h: 100 },
+    ],
+    scanners: [],
+    echo: true,
+    hints: [{ text: 'HOLD THE SHADOW, THEN PRESS Q', position: { x: 450, y: 196 }, show: 'ignite', hide: 'echo' }],
   },
 ];
 

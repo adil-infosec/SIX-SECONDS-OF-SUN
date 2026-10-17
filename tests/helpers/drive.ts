@@ -30,3 +30,12 @@ export function driveTo(sim: RoomSim, target: Vec2, maxSeconds = 10, events: Sim
 export function pressIgnite(sim: RoomSim): SimEvent[] {
   return sim.step(FRAME, { ...NO_INPUT, ignite: true });
 }
+
+export function pressEcho(sim: RoomSim): SimEvent[] {
+  return sim.step(FRAME, { ...NO_INPUT, echo: true });
+}
+
+/** Steps with no input for `seconds`. */
+export function wait(sim: RoomSim, seconds: number, events: SimEvent[] = []): void {
+  for (let t = 0; t < seconds; t += FRAME) events.push(...sim.step(FRAME, NO_INPUT));
+}
