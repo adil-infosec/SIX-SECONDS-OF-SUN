@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Six Seconds of Sun: Player's Manual</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root {
+    --night: #0A1023; --ink: #1B2235; --muted: #5B6880; --gold: #F2A93B; --amber: #E8862A; --fire: #D9541E;
+    --cyan: #1FA9C2; --teal: #13A88A; --violet: #5B45A8; --line: #E3E7EF; --soft: #F5F7FB;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #fff; }
+  body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: var(--ink); font-size: 9.4pt; line-height: 1.42;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { width: 210mm; height: 297mm; overflow: hidden; position: relative; page-break-after: always; break-after: page; display: flex; flex-direction: column; }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+
+  /* running header and footer */
+  .bar { background: var(--night); color: #C9D4E6; padding: 3.2mm 14mm; display: flex; justify-content: space-between; align-items: center;
+    font-size: 7.2pt; letter-spacing: .28em; text-transform: uppercase; }
+  .bar b { color: var(--gold); font-weight: 700; }
+  .body { flex: 1; padding: 7mm 14mm 0; }
+  .foot { padding: 3mm 14mm 6mm; display: flex; justify-content: space-between; font-size: 7pt; letter-spacing: .16em; color: var(--muted); text-transform: uppercase; }
+
+  h1 { margin: 0 0 1mm; font-size: 19pt; letter-spacing: .06em; color: var(--night); }
+  .lead { margin: 0 0 4.5mm; color: var(--muted); font-size: 10pt; }
+  h2 { margin: 5mm 0 2mm; font-size: 10.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--night); display: flex; align-items: center; gap: 2.4mm; }
+  h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--gold), transparent); }
+  h2:first-child { margin-top: 0; }
+  h3 { margin: 3mm 0 1mm; font-size: 9.8pt; color: var(--night); }
+  p { margin: 0 0 2mm; }
+  ul, ol { margin: 0 0 2mm; padding-left: 5mm; }
+  li { margin-bottom: 1.1mm; }
+  li::marker { color: var(--amber); }
+  strong { color: var(--night); }
+
+  .shot { margin: 1mm 0 3mm; }
+  .shot img { width: 100%; display: block; border-radius: 2mm; border: 1px solid #C9D1DE; }
+  .shot figcaption { margin-top: 1.2mm; font-size: 8pt; color: var(--muted); font-style: italic; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; column-gap: 7mm; }
+  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; column-gap: 5mm; }
+
+  table { width: 100%; border-collapse: collapse; margin: 0 0 2mm; }
+  td, th { padding: 1.2mm 2mm; vertical-align: top; text-align: left; border-bottom: 1px solid var(--line); }
+  th { font-size: 7.4pt; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 700; background: var(--soft); }
+  td.k { white-space: nowrap; width: 1%; font-weight: 700; color: var(--night); }
+  td.n { white-space: nowrap; width: 1%; color: var(--muted); }
+  kbd { display: inline-block; font-family: Consolas, "Courier New", monospace; font-size: 8pt; font-weight: 700; color: var(--night);
+    background: var(--soft); border: 1px solid #C9D1DE; border-bottom-width: 2px; border-radius: 1.3mm; padding: 0 1.4mm; line-height: 1.5; margin-right: .6mm; }
+
+  .tip { background: #FFF7EA; border-left: 3px solid var(--amber); padding: 2mm 3mm; border-radius: 0 2mm 2mm 0; margin: 2mm 0 3mm; font-size: 9pt; }
+  .tip b { color: var(--amber); letter-spacing: .08em; }
+  .note { background: #EAF7FA; border-left: 3px solid var(--cyan); padding: 2mm 3mm; border-radius: 0 2mm 2mm 0; margin: 2mm 0 3mm; font-size: 9pt; }
+  .note b { color: var(--cyan); letter-spacing: .08em; }
+
+  .pillar { border-radius: 2.2mm; padding: 2.6mm 3mm; color: #fff; }
+  .pillar h3 { margin: 0 0 1mm; color: #fff; letter-spacing: .26em; font-size: 9.4pt; }
+  .pillar p { margin: 0; font-size: 8.6pt; color: rgba(255,255,255,.93); }
+  .fire { background: linear-gradient(160deg, #F2A93B, #D9541E); }
+  .shadow { background: linear-gradient(160deg, #3A2F6B, #17143A); }
+  .time { background: linear-gradient(160deg, #1FB3CC, #0E6D86); }
+
+  .tag { display: inline-block; font-size: 7.2pt; font-weight: 700; letter-spacing: .12em; padding: .2mm 1.6mm; border-radius: 1mm; color: #fff; vertical-align: 1px; }
+  .t-fire { background: var(--fire); } .t-shadow { background: var(--violet); } .t-time { background: var(--cyan); } .t-sun { background: var(--gold); color: var(--night); }
+
+  /* cover */
+  .cover { background: radial-gradient(120% 90% at 50% 30%, #1C1C36 0%, #111A33 45%, #050C1A 100%); color: #fff; justify-content: center; align-items: center; text-align: center; }
+  .cover img { width: 150mm; }
+  .cover .kicker { font-size: 8pt; letter-spacing: .5em; color: #51D8ED; margin-bottom: 7mm; }
+  .cover .title { margin-top: 9mm; font-size: 22pt; font-weight: 700; letter-spacing: .32em; color: #FFC857; }
+  .cover .tl { margin-top: 3mm; font-size: 11pt; font-style: italic; color: #C9D4E6; }
+  .cover .themes { margin-top: 3mm; font-size: 9pt; font-weight: 700; letter-spacing: .5em; color: #51D8ED; }
+  .cover .themes b { color: #FF9736; letter-spacing: 0; margin: 0 .6em; }
+  .toc { margin: 14mm auto 0; width: 120mm; text-align: left; border-top: 1px solid rgba(201,212,230,.25); padding-top: 5mm; }
+  .toc div { display: flex; justify-content: space-between; padding: 1.2mm 0; font-size: 9.4pt; color: #C9D4E6; border-bottom: 1px dotted rgba(201,212,230,.2); }
+  .toc span:last-child { color: #FFC857; font-weight: 700; }
+  .cover .link { position: absolute; bottom: 14mm; left: 0; right: 0; font-size: 8.4pt; letter-spacing: .18em; color: #8193AE; }
+  .cover .link b { color: #fff; letter-spacing: .06em; }
+</style>
+</head>
+<body>
+
+<!-- ============ 1. COVER ============ -->
+<div class="page cover">
+  <div class="kicker">OBSERVATORY ONLINE</div>
+  <img src="../../src/assets/title-logo.png" alt="Six Seconds of Sun">
+  <div class="title">PLAYER'S MANUAL</div>
+  <div class="tl">Light the fire. Shape the shadow. Borrow six seconds.</div>
+  <div class="themes">FIRE<b>✦</b>SHADOW<b>✦</b>TIME</div>
+  <div class="toc">
+    <div><span>Getting started &amp; controls</span><span>2</span></div>
+    <div><span>Fire, shadow and time</span><span>3</span></div>
+    <div><span>The screen, hazards &amp; stars</span><span>4</span></div>
+    <div><span>The chambers</span><span>5</span></div>
+    <div><span>Menus, saving &amp; troubleshooting</span><span>6</span></div>
+  </div>
+  <div class="link">PLAY IN YOUR BROWSER · <b>adil-infosec.github.io/SIX-SECONDS-OF-SUN</b></div>
+</div>
+
+<!-- ============ 2. GETTING STARTED ============ -->
+<div class="page">
+  <div class="bar"><span><b>Six Seconds of Sun</b> · Player's Manual</span><span>Getting started</span></div>
+  <div class="body">
+    <h1>Getting Started</h1>
+    <p class="lead">At the sixth hour of an endless eclipse, the great solar observatory has gone dark. You are the last Lightkeeper. Relight its chambers and restart the solar engine before the darkness becomes permanent.</p>
+
+    <div class="cols">
+      <div>
+        <h2>What you need</h2>
+        <ul>
+          <li>A desktop or laptop browser: <strong>Chrome, Edge or Firefox</strong>.</li>
+          <li>A keyboard. A mouse is optional (menus can be clicked).</li>
+          <li>Speakers or headphones: the soundscape tells you a lot.</li>
+          <li>About <strong>10–15 minutes</strong> for the six campaign chambers.</li>
+        </ul>
+        <h2>Starting a game</h2>
+        <ol>
+          <li>Open <strong>adil-infosec.github.io/SIX-SECONDS-OF-SUN</strong>.</li>
+          <li>On the title screen, choose <strong>PLAY</strong>. It continues from the next chamber you have not cleared yet.</li>
+          <li><strong>LEVEL SELECT</strong> lets you replay any unlocked chamber; <strong>HOW TO PLAY</strong> shows a one-screen summary.</li>
+        </ol>
+        <div class="note"><b>SOUND</b> Browsers only allow sound after your first key press or click, so the music begins as soon as you touch the game.</div>
+      </div>
+      <div>
+        <figure class="shot"><img src="img/title.jpg" alt="Title screen"><figcaption>The title screen. Top right: sound on/off and settings.</figcaption></figure>
+        <figure class="shot"><img src="img/howto.jpg" alt="How to play"><figcaption>HOW TO PLAY: the three rules and every key, on one screen.</figcaption></figure>
+      </div>
+    </div>
+
+    <h2>Controls</h2>
+    <div class="cols">
+      <table>
+        <tr><th colspan="2">In a chamber</th></tr>
+        <tr><td class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows</td><td>Move in 8 directions</td></tr>
+        <tr><td class="k"><kbd>E</kbd></td><td>Light the brazier you are standing next to</td></tr>
+        <tr><td class="k"><kbd>Q</kbd></td><td>Release your 6-second echo (from chamber 3)</td></tr>
+        <tr><td class="k"><kbd>R</kbd></td><td>Restart the chamber instantly</td></tr>
+        <tr><td class="k"><kbd>Esc</kbd></td><td>Pause: Resume · Restart · Chambers</td></tr>
+        <tr><td class="k"><kbd>M</kbd></td><td>Sound on / off</td></tr>
+      </table>
+      <table>
+        <tr><th colspan="2">In menus</th></tr>
+        <tr><td class="k"><kbd>↑</kbd><kbd>↓</kbd> or <kbd>W</kbd><kbd>S</kbd></td><td>Choose a button</td></tr>
+        <tr><td class="k"><kbd>Enter</kbd> / <kbd>Space</kbd></td><td>Confirm</td></tr>
+        <tr><td class="k"><kbd>Esc</kbd></td><td>Back / close a panel</td></tr>
+        <tr><td class="k"><kbd>Q</kbd> / <kbd>E</kbd></td><td>Chamber list: switch Campaign / Bonus page</td></tr>
+        <tr><td class="k"><kbd>V</kbd></td><td>Screen shake on / off</td></tr>
+        <tr><td class="k">Mouse</td><td>Hover to select, click to confirm</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span>Getting started &amp; controls</span><span>2</span></div>
+</div>
+
+<!-- ============ 3. FIRE SHADOW TIME ============ -->
+<div class="page">
+  <div class="bar"><span><b>Six Seconds of Sun</b> · Player's Manual</span><span>How it works</span></div>
+  <div class="body">
+    <h1>Fire, Shadow and Time</h1>
+    <p class="lead">Every chamber is a sealed room with an exit gate. Open the gate, step into the portal behind it, and the chamber is cleared. Three ideas open every gate, and they work as one chain.</p>
+
+    <div class="cols3">
+      <div class="pillar fire"><h3>FIRE</h3><p>Stand next to a brazier and press <b>E</b>. The main beacon floods the room with light. No fire, no shadows.</p></div>
+      <div class="pillar shadow"><h3>SHADOW</h3><p>Your body blocks the light and throws a shadow straight away from the flame. Put that shadow on a rune to power it.</p></div>
+      <div class="pillar time"><h3>TIME</h3><p>Press <b>Q</b> and your last six seconds of movement become a looping cyan echo. Its shadow powers runes too.</p></div>
+    </div>
+
+    <div class="cols" style="margin-top:4mm">
+      <div>
+        <h2>Casting a shadow</h2>
+        <ul>
+          <li>Your shadow always points <strong>away from the lit beacon</strong>. To aim it, stand between the flame and the target.</li>
+          <li>It starts at your feet and widens with distance. Stepping toward or away from the flame slides it along the floor.</li>
+          <li>Hold the shadow on a rune: its ring fills in under half a second, then the rune lights up (<strong>SHADOW LOCK</strong>).</li>
+        </ul>
+        <figure class="shot"><img src="img/room2-shadow.jpg" alt="Shadow lock"><figcaption>Chamber 2: standing between the flame and the rune locks it.</figcaption></figure>
+      </div>
+      <div>
+        <h2>Your echo (Q)</h2>
+        <ul>
+          <li>The brace on your wrist remembers your last <strong>6 seconds</strong>. The <strong>MEMORY</strong> ring at the top of the screen fills as you move; with at least 1 second stored it glows cyan and Q is ready.</li>
+          <li>The echo replays that path forever. To make it stand still, stand still for six seconds before you press Q.</li>
+          <li>Its shadow works exactly like yours, and standing <strong>in your echo's shadow</strong> protects you from fire.</li>
+          <li>Pressing Q again replaces the old echo. The echo cannot light braziers or leave the room.</li>
+        </ul>
+        <figure class="shot"><img src="img/room3-echo.jpg" alt="Echo holding a rune"><figcaption>Chamber 3: the echo holds the rune in shadow while you walk out.</figcaption></figure>
+      </div>
+    </div>
+
+    <h2>Runes and gates</h2>
+    <table>
+      <tr><td class="k">Latching rune</td><td>Solid ring. Once powered it stays powered.</td></tr>
+      <tr><td class="k">Continuous rune</td><td>Dashed outer ring. Only powered while a shadow is on it: hold it yourself, or leave your echo there.</td></tr>
+      <tr><td class="k">The gate</td><td>Icons beside it show what it needs (flames, relays, runes). It opens when all are met and closes again if one is lost, unless you are standing in the doorway.</td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>Fire, shadow and time</span><span>3</span></div>
+</div>
+
+<!-- ============ 4. SCREEN, HAZARDS, STARS ============ -->
+<div class="page">
+  <div class="bar"><span><b>Six Seconds of Sun</b> · Player's Manual</span><span>Survival</span></div>
+  <div class="body">
+    <h1>The Screen, Hazards &amp; Stars</h1>
+
+    <h2>Reading the screen</h2>
+    <table>
+      <tr><td class="k">Top left</td><td>Chamber number and name.</td></tr>
+      <tr><td class="k">Top centre</td><td><strong>MEMORY</strong> ring around the Q key and seconds stored; the bar beside it shows where your echo is in its six-second loop.</td></tr>
+      <tr><td class="k">Top right</td><td>Hearts, the chamber clock (it starts when you first move) and the pause sign.</td></tr>
+      <tr><td class="k">Bottom left</td><td>Goal badges: <strong>FLAME</strong> lit, <strong>RUNE</strong> powered, <strong>GATE</strong> locked / open. They light up as you complete them.</td></tr>
+      <tr><td class="k">In the room</td><td>An <kbd>E</kbd> key appears over a brazier you can light; short hints mark what to try next.</td></tr>
+    </table>
+
+    <div class="cols">
+      <div>
+        <h2>Fire scanners</h2>
+        <ul>
+          <li>Burning bands sweep back and forth across striped hazard lanes.</li>
+          <li>A <strong>dashed line</strong> shows where the band will be a moment later, and a red ring flashes around you just before it would touch you.</li>
+          <li>Cross when the band is far away, or stand <strong>inside your echo's shadow</strong>: the fire cannot burn you there.</li>
+        </ul>
+        <h2>Hearts and checkpoints</h2>
+        <ul>
+          <li>You have <strong>3 hearts</strong>. A burn costs one, and you reappear at the last checkpoint you touched (or the start), protected for one second.</li>
+          <li>Lose all three and the chamber is <strong>EXTINGUISHED</strong>: it restarts by itself. Press <kbd>R</kbd> any time to restart sooner.</li>
+        </ul>
+      </div>
+      <div>
+        <figure class="shot"><img src="img/room4-shelter.jpg" alt="Sheltering from a scanner"><figcaption>Chamber 4: the band passes right over the keeper, who is safe inside the echo's shadow.</figcaption></figure>
+        <figure class="shot"><img src="img/clear.jpg" alt="Chamber cleared"><figcaption>The clear screen: stars, time against par, hits and your best record.</figcaption></figure>
+      </div>
+    </div>
+
+    <h2>Stars</h2>
+    <table>
+      <tr><th>Rating</th><th>How to earn it</th></tr>
+      <tr><td class="k">★★★</td><td>Clear within the chamber's <strong>par time</strong> with <strong>no hits</strong>.</td></tr>
+      <tr><td class="k">★★</td><td>Clear within <strong>1.5 × par</strong> with at most <strong>one hit</strong>.</td></tr>
+      <tr><td class="k">★</td><td>Any clear.</td></tr>
+    </table>
+    <p>Your best time and best stars are kept for every chamber; beating either shows <strong>NEW BEST</strong>.</p>
+  </div>
+  <div class="foot"><span>The screen, hazards &amp; stars</span><span>4</span></div>
+</div>
+
+<!-- ============ 5. CHAMBERS ============ -->
+<div class="page">
+  <div class="bar"><span><b>Six Seconds of Sun</b> · Player's Manual</span><span>The chambers</span></div>
+  <div class="body">
+    <h1>The Chambers</h1>
+    <p class="lead">Six campaign chambers teach one idea each, then combine them. Clearing chamber 6 plays the sunrise and opens six bonus chambers with new mechanics.</p>
+
+    <h2>Campaign</h2>
+    <table>
+      <tr><th>#</th><th>Chamber</th><th>Par</th><th>What it teaches</th></tr>
+      <tr><td class="n">01</td><td class="k">A Spark in the Dark <span class="tag t-fire">FIRE</span></td><td class="n">0:35</td><td>Light the beacon with E; the gate opens.</td></tr>
+      <tr><td class="n">02</td><td class="k">Shape of Nothing <span class="tag t-shadow">SHADOW</span></td><td class="n">1:00</td><td>Stand between flame and rune to lock it with your shadow.</td></tr>
+      <tr><td class="n">03</td><td class="k">The Other You <span class="tag t-time">TIME</span></td><td class="n">1:20</td><td>One keeper cannot hold the rune and leave: let your echo hold it.</td></tr>
+      <tr><td class="n">04</td><td class="k">Furnace Hour <span class="tag t-fire">FIRE</span></td><td class="n">1:35</td><td>Park the echo on the rune, then shelter in its shade from the scanner.</td></tr>
+      <tr><td class="n">05</td><td class="k">Ashes and Angles <span class="tag t-shadow">SHADOW</span></td><td class="n">1:50</td><td>Light a relay too, and match an angled shadow line.</td></tr>
+      <tr><td class="n">06</td><td class="k">Six Seconds of Sun <span class="tag t-sun">SUN</span></td><td class="n">2:25</td><td>The finale: sun core, two relays, two scanner lanes and your echo.</td></tr>
+    </table>
+
+    <h2>Bonus chambers</h2>
+    <div class="cols">
+      <table>
+        <tr><td class="n">07</td><td class="k">Twin Seals</td><td>Two seals that charge only while <strong>one shadow covers both</strong> (dotted link).</td></tr>
+        <tr><td class="n">08</td><td class="k">Shifting Stones</td><td>Sliding pillars <strong>cut your shadow short</strong>; charge in the gaps.</td></tr>
+        <tr><td class="n">09</td><td class="k">Lighthouse</td><td>A fire beam turns full circle; it stops at stone, so <strong>hide behind blocks</strong>.</td></tr>
+        <tr><td class="n">10</td><td class="k">Clockwork Order</td><td>Rune A holds for <strong>3 seconds</strong> (amber ring); power B before it runs out.</td></tr>
+        <tr><td class="n">11</td><td class="k">Prism Hall</td><td>Light the flame, then the <strong>prism</strong>: its cone throws a second shadow at a new angle.</td></tr>
+        <tr><td class="n">12</td><td class="k">Echo Gauntlet</td><td>Two fast fire lanes: park an echo before each and cross in its shade.</td></tr>
+      </table>
+      <div>
+        <figure class="shot"><img src="img/bonus9-lighthouse.jpg" alt="Lighthouse"><figcaption>Bonus 03: the beam stops at the block; the keeper waits in its lee.</figcaption></figure>
+        <figure class="shot"><img src="img/bonus11-prism.jpg" alt="Prism Hall"><figcaption>Bonus 05: the prism's cone reaches the sealed corner rune.</figcaption></figure>
+      </div>
+    </div>
+    <div class="tip"><b>TIP</b> Stuck? Watch which way your shadow points, then walk along the line from the flame through the rune. The right spot is always on that line.</div>
+  </div>
+  <div class="foot"><span>The chambers</span><span>5</span></div>
+</div>
+
+<!-- ============ 6. MENUS, SAVING, TROUBLESHOOTING ============ -->
+<div class="page">
+  <div class="bar"><span><b>Six Seconds of Sun</b> · Player's Manual</span><span>Menus &amp; help</span></div>
+  <div class="body">
+    <h1>Menus, Saving &amp; Help</h1>
+
+    <div class="cols">
+      <div>
+        <h2>Chamber list</h2>
+        <ul>
+          <li>Cards show each chamber's number, best stars and best time. Locked chambers are dimmed.</li>
+          <li>Two pages: <strong>CAMPAIGN</strong> and <strong>BONUS</strong>. Switch with <kbd>Q</kbd> / <kbd>E</kbd>, or click the tabs.</li>
+          <li>The arrow at top left returns to the title; the speaker toggles sound.</li>
+        </ul>
+        <figure class="shot"><img src="img/chambers.jpg" alt="Chamber list"><figcaption>The chamber list, campaign page.</figcaption></figure>
+      </div>
+      <div>
+        <h2>Pause &amp; settings</h2>
+        <ul>
+          <li><kbd>Esc</kbd> pauses: <strong>RESUME</strong>, <strong>RESTART</strong> or back to <strong>CHAMBERS</strong>.</li>
+          <li>The game also pauses itself if the window loses focus, so nothing can hurt you while you are away.</li>
+          <li>The gear on the title screen opens <strong>Settings</strong>: sound and screen shake.</li>
+        </ul>
+        <figure class="shot"><img src="img/pause.jpg" alt="Pause"><figcaption>The pause card.</figcaption></figure>
+      </div>
+    </div>
+
+    <h2>Saving</h2>
+    <ul>
+      <li>Progress saves automatically in your browser after every clear: unlocked chambers, best times, stars and settings.</li>
+      <li>It is stored on this computer, in this browser. Clearing the browser's site data resets it.</li>
+    </ul>
+
+    <h2>Troubleshooting</h2>
+    <table>
+      <tr><td class="k">No sound</td><td>Press any key or click the game once; check <kbd>M</kbd> and the speaker icon; make sure the browser tab is not muted.</td></tr>
+      <tr><td class="k">Blank or black screen</td><td>The game switches to its Canvas renderer automatically if WebGL fails. You can force it by adding <strong>?renderer=canvas</strong> to the address.</td></tr>
+      <tr><td class="k">Choppy movement</td><td>Close other heavy tabs, and turn on hardware acceleration in the browser settings.</td></tr>
+      <tr><td class="k">Game paused by itself</td><td>The window lost focus. Click the game and press <kbd>Esc</kbd> or choose RESUME.</td></tr>
+      <tr><td class="k">Stuck in a puzzle</td><td>Press <kbd>R</kbd> to restart instantly; re-read the hint in the room; check the goal badges at bottom left.</td></tr>
+    </table>
+
+    <h2>Quick questions</h2>
+    <p><strong>Why is Q not working?</strong> The echo unlocks in chamber 3, needs at least one second of memory, and has a short cooldown after each use.</p>
+    <p><strong>Why won't the brazier light?</strong> Stand right next to it, until the <kbd>E</kbd> key appears above it. A prism takes light only after the main beacon is lit.</p>
+    <p><strong>My shadow is on the rune but nothing happens.</strong> Hold it there a little longer, and check that the beacon is lit: no fire, no shadow.</p>
+  </div>
+  <div class="foot"><span>Menus, saving &amp; troubleshooting</span><span>6</span></div>
+</div>
+
+</body>
+</html>
